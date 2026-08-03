@@ -269,6 +269,22 @@ export default class EnvironmentService {
     ): Promise<IEnvironment> {
         const sourceEnvironment = await this.get(sourceName);
 
+        const projects = environment.projects ?? [];
+        const projectChecks = await Promise.all(
+            projects.map(async (project) => ({
+                project,
+                exists: await this.projectStore.hasProject(project),
+            })),
+        );
+        const missingProjects = projectChecks
+            .filter(({ exists }) => !exists)
+            .map(({ project }) => project);
+        if (missingProjects.length > 0) {
+            throw new BadDataError(
+                `Could not clone environment. The following projects do not exist: ${missingProjects.join(', ')}.`,
+            );
+        }
+
         const createdEnvironment = await this.createEnvironment(
             {
                 name: environment.name,
@@ -277,7 +293,6 @@ export default class EnvironmentService {
             auditUser,
         );
 
-        const projects = environment.projects ?? [];
         if (projects.length > 0) {
             await Promise.all(
                 projects.map((project) =>

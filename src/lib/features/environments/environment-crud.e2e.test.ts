@@ -170,3 +170,19 @@ test('cloning from a non-existing environment yields 404', async () => {
         .send({ name: 'clone-of-nothing', type: 'development' })
         .expect(404);
 });
+
+test('cloning into a non-existing project yields 400 and does not create the environment', async () => {
+    const { body } = await app.request
+        .post('/api/admin/environments/development/clone')
+        .send({
+            name: 'clone-with-bad-project',
+            type: 'development',
+            projects: ['default', 'i-do-not-exist'],
+        })
+        .expect(400);
+    expect(body.message).toContain('i-do-not-exist');
+
+    await app.request
+        .get('/api/admin/environments/clone-with-bad-project')
+        .expect(404);
+});
