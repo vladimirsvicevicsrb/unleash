@@ -18,7 +18,6 @@ exports[`returns all baseRoutes 1`] = `
     "type": "protected",
   },
   {
-    "enterprise": true,
     "menu": {},
     "parent": "/projects",
     "path": "/projects/create",
@@ -221,7 +220,6 @@ exports[`returns all baseRoutes 1`] = `
     "type": "protected",
   },
   {
-    "enterprise": true,
     "menu": {
       "main": true,
     },

@@ -28,8 +28,6 @@ import { Search } from 'component/common/Search/Search';
 import { HighlightCell } from 'component/common/Table/cells/HighlightCell/HighlightCell';
 import { TextCell } from 'component/common/Table/cells/TextCell/TextCell';
 import type { IEnvironment } from 'interfaces/environments';
-import { useUiFlag } from 'hooks/useUiFlag';
-import { PremiumFeature } from 'component/common/PremiumFeature/PremiumFeature';
 import useUiConfig from 'hooks/api/getters/useUiConfig/useUiConfig';
 
 const StyledAlert = styled(Alert)(({ theme }) => ({
@@ -85,7 +83,6 @@ export const EnvironmentTable = () => {
     const { changeSortOrder } = useEnvironmentApi();
     const { setToastApiError } = useToast();
     const { environments, mutateEnvironments } = useEnvironments();
-    const isFeatureEnabled = useUiFlag('EEA');
     const { isEnterprise } = useUiConfig();
     const [globalFilter, setGlobalFilter] = useState('');
 
@@ -116,19 +113,15 @@ export const EnvironmentTable = () => {
     >(() => {
         const baseColumns: ColumnDef<IEnvironment, unknown>[] = [
             ...COLUMNS,
-            ...(isFeatureEnabled
-                ? [
-                      {
-                          id: 'Actions',
-                          header: 'Actions',
-                          cell: ({ row: { original } }) => (
-                              <EnvironmentActionCell environment={original} />
-                          ),
-                          enableGlobalFilter: false,
-                          meta: { width: '1%', align: 'center' as const },
-                      } satisfies ColumnDef<IEnvironment, unknown>,
-                  ]
-                : []),
+            {
+                id: 'Actions',
+                header: 'Actions',
+                cell: ({ row: { original } }) => (
+                    <EnvironmentActionCell environment={original} />
+                ),
+                enableGlobalFilter: false,
+                meta: { width: '1%', align: 'center' as const },
+            } satisfies ColumnDef<IEnvironment, unknown>,
         ];
         if (isEnterprise()) {
             baseColumns.splice(2, 0, {
@@ -143,7 +136,7 @@ export const EnvironmentTable = () => {
 
         return baseColumns;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isFeatureEnabled]);
+    }, []);
 
     const table = useReactTable({
         columns: columnsWithActions,
@@ -176,14 +169,6 @@ export const EnvironmentTable = () => {
     const header = (
         <PageHeader title={`Environments (${count})`} actions={headerActions} />
     );
-
-    if (!isFeatureEnabled) {
-        return (
-            <PageContent header={header}>
-                <PremiumFeature feature='environments' />
-            </PageContent>
-        );
-    }
 
     return (
         <PageContent header={header}>
