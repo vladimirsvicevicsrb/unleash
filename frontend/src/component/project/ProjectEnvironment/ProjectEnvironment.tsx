@@ -6,7 +6,6 @@ import { PageHeader } from 'component/common/PageHeader/PageHeader';
 import { UPDATE_PROJECT } from 'component/providers/AccessProvider/permissions';
 import ApiError from 'component/common/ApiError/ApiError';
 import useToast from 'hooks/useToast';
-import useUiConfig from 'hooks/api/getters/useUiConfig/useUiConfig';
 import { Alert, styled, TableBody, TableRow, Link } from '@mui/material';
 import useProjectApi from 'hooks/api/actions/useProjectApi/useProjectApi';
 import PermissionSwitch from 'component/common/PermissionSwitch/PermissionSwitch';
@@ -34,7 +33,6 @@ import { TextCell } from 'component/common/Table/cells/TextCell/TextCell';
 import useProjectOverview, {
     useProjectOverviewNameOrId,
 } from 'hooks/api/getters/useProjectOverview/useProjectOverview';
-import { UpgradeMoreEnvironments } from './UpgradeMoreEnvironments.tsx';
 
 const StyledAlert = styled(Alert)(({ theme }) => ({
     marginBottom: theme.spacing(4),
@@ -71,7 +69,6 @@ const ProjectEnvironmentList = () => {
         useState<IProjectEnvironment>();
     const [hideDialog, setHideDialog] = useState(false);
     const [globalFilter, setGlobalFilter] = useState('');
-    const { isOss } = useUiConfig();
 
     const projectEnvironments = useMemo<IProjectEnvironment[]>(
         () =>
@@ -154,10 +151,7 @@ const ProjectEnvironmentList = () => {
     };
 
     const envIsDisabled = (env: IProjectEnvironment) => {
-        return (
-            (isOss() && env.name === 'default') ||
-            (env.projectVisible && onlyOneEnvEnabled())
-        );
+        return env.projectVisible && onlyOneEnvEnabled();
     };
 
     const onlyOneEnvEnabled = (): boolean => {
@@ -247,14 +241,10 @@ const ProjectEnvironmentList = () => {
                         initialValue={globalFilter}
                         onChange={(value) => setGlobalFilter(value)}
                     />
-                    {!isOss() ? (
-                        <>
-                            <PageHeader.Divider />
-                            <Link component={RouterLink} to='/environments'>
-                                Configure environments
-                            </Link>
-                        </>
-                    ) : null}
+                    <PageHeader.Divider />
+                    <Link component={RouterLink} to='/environments'>
+                        Configure environments
+                    </Link>
                 </>
             }
         />
@@ -323,7 +313,6 @@ const ProjectEnvironmentList = () => {
                         />
                     }
                 />
-                {isOss() ? <UpgradeMoreEnvironments /> : null}
                 <EnvironmentHideDialog
                     environment={selectedEnvironment}
                     open={hideDialog}

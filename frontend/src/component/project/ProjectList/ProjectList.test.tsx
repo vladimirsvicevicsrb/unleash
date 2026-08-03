@@ -20,14 +20,11 @@ const setupApi = () => {
     });
 };
 
-test('Enabled new project button when version and permission allow for it and limit is reached', async () => {
+test('Enabled new project button when permission allows for it and limit is reached', async () => {
     setupApi();
     render(<ProjectList />, {
         permissions: [{ permission: CREATE_PROJECT }],
     });
-
-    const button = await screen.findByText('New project');
-    expect(button).toHaveAttribute('aria-disabled', 'true');
 
     await waitFor(async () => {
         const button = await screen.findByText('New project');

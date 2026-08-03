@@ -49,7 +49,7 @@ export const ProjectList = () => {
         }
     }, [forceListView, state.view]);
 
-    const showViewToggleButton = !(isOss() || forceListView);
+    const showViewToggleButton = !forceListView;
     const safeView = forceListView ? 'list' : state.view;
 
     const myProfileProjects = new Set(useProfile().profile?.projects || []);
@@ -74,9 +74,9 @@ export const ProjectList = () => {
             ? `${sortedProjects.length} of ${projects.length}`
             : projects.length;
 
-    const myProjects = isOss() ? sortedProjects : groupedProjects.myProjects;
+    const myProjects = groupedProjects.myProjects;
 
-    const otherProjects = isOss() ? [] : groupedProjects.otherProjects;
+    const otherProjects = groupedProjects.otherProjects;
 
     return (
         <PageContent
@@ -87,7 +87,7 @@ export const ProjectList = () => {
                     actions={
                         <>
                             <ConditionallyRender
-                                condition={!isOss() && !isSmallScreen}
+                                condition={!isSmallScreen}
                                 show={
                                     <>
                                         <Search
@@ -112,7 +112,7 @@ export const ProjectList = () => {
                     }
                 >
                     <ConditionallyRender
-                        condition={!isOss() && isSmallScreen}
+                        condition={isSmallScreen}
                         show={
                             <Search
                                 initialValue={state.query || ''}
@@ -164,11 +164,7 @@ export const ProjectList = () => {
                             <ProjectGroup
                                 loading={loading}
                                 view={safeView}
-                                projects={
-                                    isOss()
-                                        ? sortedProjects
-                                        : groupedProjects.myProjects
-                                }
+                                projects={groupedProjects.myProjects}
                             />
                         </div>
                     )}
