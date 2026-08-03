@@ -29,11 +29,10 @@ export class FeatureEnvironmentStore implements IFeatureEnvironmentStore {
 
     private readonly timer: Function;
 
-    private readonly isOss: boolean;
     constructor(
         db: Db,
         eventBus: EventEmitter,
-        { isOss }: Pick<IUnleashConfig, 'isOss'>,
+        _config: Pick<IUnleashConfig, 'isOss'>,
     ) {
         this.db = db;
         this.timer = (action) =>
@@ -41,7 +40,6 @@ export class FeatureEnvironmentStore implements IFeatureEnvironmentStore {
                 store: 'feature-environments',
                 action,
             });
-        this.isOss = isOss;
     }
 
     async delete({
@@ -102,38 +100,12 @@ export class FeatureEnvironmentStore implements IFeatureEnvironmentStore {
         );
     }
 
-    addOssFilterIfNeeded(queryBuilder) {
-        if (this.isOss) {
-            return queryBuilder
-                .join(
-                    'environments',
-                    'environments.name',
-                    '=',
-                    `${T.featureEnvs}.environment`,
-                )
-                .whereIn('environments.name', [
-                    'default',
-                    'development',
-                    'production',
-                ])
-                .select([
-                    'feature_name',
-                    'environment',
-                    'variants',
-                    'last_seen_at',
-                    `${T.featureEnvs}.enabled`,
-                ]);
-        }
-        return queryBuilder;
-    }
-
     async getAll(query?: Object): Promise<IFeatureEnvironment[]> {
         const stopTimer = this.timer('getAll');
         let rows = this.db(T.featureEnvs);
         if (query) {
             rows = rows.where(query);
         }
-        this.addOssFilterIfNeeded(rows);
         const result = await rows;
         stopTimer();
         return result.map((r) => ({
@@ -155,7 +127,6 @@ export class FeatureEnvironmentStore implements IFeatureEnvironmentStore {
         if (environment) {
             rows = rows.where({ environment });
         }
-        this.addOssFilterIfNeeded(rows);
         const result = await rows;
         stopTimer();
         return result.map((r) => ({

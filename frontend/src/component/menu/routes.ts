@@ -96,7 +96,6 @@ export const routes: IRoute[] = [
         title: 'Create',
         component: LazyCreateProject,
         type: 'protected',
-        enterprise: true,
         menu: {},
     },
     {
@@ -323,7 +322,6 @@ export const routes: IRoute[] = [
         component: EnvironmentTable,
         type: 'protected',
         menu: { main: true },
-        enterprise: true,
     },
     {
         path: '/feedback',

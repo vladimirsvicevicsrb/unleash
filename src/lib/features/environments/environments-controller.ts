@@ -24,6 +24,13 @@ import {
     environmentsProjectSchema,
     type EnvironmentsProjectSchema,
 } from '../../openapi/spec/environments-project-schema.js';
+import type { CreateEnvironmentSchema } from '../../openapi/spec/create-environment-schema.js';
+import type { UpdateEnvironmentSchema } from '../../openapi/spec/update-environment-schema.js';
+import type { CloneEnvironmentSchema } from '../../openapi/spec/clone-environment-schema.js';
+import type { NameSchema } from '../../openapi/spec/name-schema.js';
+import { serializeDates } from '../../types/serialize-dates.js';
+import type { IAuthRequest } from '../../routes/unleash-types.js';
+import type { WithTransactional } from '../../db/transaction.js';
 
 interface EnvironmentParam {
     name: string;
@@ -36,18 +43,131 @@ interface ProjectParam {
 export class EnvironmentsController extends Controller {
     private openApiService: OpenApiService;
 
-    private service: EnvironmentService;
+    private service: WithTransactional<EnvironmentService>;
 
     constructor(
         config: IUnleashConfig,
         {
-            environmentService,
+            transactionalEnvironmentService,
             openApiService,
-        }: Pick<IUnleashServices, 'environmentService' | 'openApiService'>,
+        }: Pick<
+            IUnleashServices,
+            'transactionalEnvironmentService' | 'openApiService'
+        >,
     ) {
         super(config);
         this.openApiService = openApiService;
-        this.service = environmentService;
+        this.service = transactionalEnvironmentService;
+
+        this.route({
+            method: 'post',
+            path: '',
+            handler: this.createEnvironment,
+            permission: ADMIN,
+            middleware: [
+                openApiService.validPath({
+                    tags: ['Environments'],
+                    operationId: 'createEnvironment',
+                    release: { stable: '8.0.3' },
+                    summary: 'Create an environment',
+                    description:
+                        'Creates a new environment with the provided name and type.',
+                    requestBody: createRequestSchema('createEnvironmentSchema'),
+                    responses: {
+                        201: createResponseSchema('environmentSchema'),
+                        ...getStandardResponses(400, 401, 403, 409),
+                    },
+                }),
+            ],
+        });
+
+        this.route({
+            method: 'post',
+            path: '/validate',
+            handler: this.validateEnvironmentName,
+            permission: NONE,
+            middleware: [
+                openApiService.validPath({
+                    tags: ['Environments'],
+                    operationId: 'validateEnvironmentName',
+                    release: { stable: '8.0.3' },
+                    summary: 'Validate an environment name',
+                    description:
+                        'Validates that the provided environment name is URL-friendly and not already in use.',
+                    requestBody: createRequestSchema('nameSchema'),
+                    responses: {
+                        204: emptyResponse,
+                        ...getStandardResponses(400, 401, 409),
+                    },
+                }),
+            ],
+        });
+
+        this.route({
+            method: 'put',
+            path: '/update/:name',
+            handler: this.updateEnvironment,
+            permission: ADMIN,
+            middleware: [
+                openApiService.validPath({
+                    tags: ['Environments'],
+                    operationId: 'updateEnvironment',
+                    release: { stable: '8.0.3' },
+                    summary: 'Update the environment with `name`',
+                    description:
+                        'Updates the type and/or sort order of the environment with `name`.',
+                    requestBody: createRequestSchema('updateEnvironmentSchema'),
+                    responses: {
+                        200: createResponseSchema('environmentSchema'),
+                        ...getStandardResponses(400, 401, 403, 404),
+                    },
+                }),
+            ],
+        });
+
+        this.route({
+            method: 'delete',
+            path: '/:name',
+            acceptAnyContentType: true,
+            handler: this.deleteEnvironment,
+            permission: ADMIN,
+            middleware: [
+                openApiService.validPath({
+                    tags: ['Environments'],
+                    operationId: 'removeEnvironment',
+                    release: { stable: '8.0.3' },
+                    summary: 'Delete the environment with `name`',
+                    description:
+                        'Deletes the environment with `name`. Protected environments can not be deleted.',
+                    responses: {
+                        200: emptyResponse,
+                        ...getStandardResponses(401, 403, 404),
+                    },
+                }),
+            ],
+        });
+
+        this.route({
+            method: 'post',
+            path: '/:name/clone',
+            handler: this.cloneEnvironment,
+            permission: ADMIN,
+            middleware: [
+                openApiService.validPath({
+                    tags: ['Environments'],
+                    operationId: 'cloneEnvironment',
+                    release: { stable: '8.0.3' },
+                    summary: 'Clone the environment with `name`',
+                    description:
+                        'Creates a new environment based on the environment with `name`, copying enabled features and strategies for the selected projects.',
+                    requestBody: createRequestSchema('cloneEnvironmentSchema'),
+                    responses: {
+                        201: createResponseSchema('environmentSchema'),
+                        ...getStandardResponses(400, 401, 403, 404, 409),
+                    },
+                }),
+            ],
+        });
 
         this.route({
             method: 'get',
@@ -177,6 +297,69 @@ export class EnvironmentsController extends Controller {
                 }),
             ],
         });
+    }
+
+    async createEnvironment(
+        req: IAuthRequest<unknown, unknown, CreateEnvironmentSchema>,
+        res: Response<EnvironmentSchema>,
+    ): Promise<void> {
+        const environment = await this.service.transactional((service) =>
+            service.createEnvironment(req.body, req.audit),
+        );
+        this.openApiService.respondWithValidation(
+            201,
+            res,
+            environmentSchema.$id,
+            serializeDates(environment),
+        );
+    }
+
+    async validateEnvironmentName(
+        req: Request<unknown, unknown, NameSchema>,
+        res: Response,
+    ): Promise<void> {
+        await this.service.validateEnvironmentName(req.body.name);
+        res.status(204).end();
+    }
+
+    async updateEnvironment(
+        req: IAuthRequest<EnvironmentParam, unknown, UpdateEnvironmentSchema>,
+        res: Response<EnvironmentSchema>,
+    ): Promise<void> {
+        const environment = await this.service.transactional((service) =>
+            service.updateEnvironment(req.params.name, req.body, req.audit),
+        );
+        this.openApiService.respondWithValidation(
+            200,
+            res,
+            environmentSchema.$id,
+            serializeDates(environment),
+        );
+    }
+
+    async deleteEnvironment(
+        req: IAuthRequest<EnvironmentParam>,
+        res: Response,
+    ): Promise<void> {
+        await this.service.transactional((service) =>
+            service.deleteEnvironment(req.params.name, req.audit),
+        );
+        res.status(200).end();
+    }
+
+    async cloneEnvironment(
+        req: IAuthRequest<EnvironmentParam, unknown, CloneEnvironmentSchema>,
+        res: Response<EnvironmentSchema>,
+    ): Promise<void> {
+        const environment = await this.service.transactional((service) =>
+            service.cloneEnvironment(req.params.name, req.body, req.audit),
+        );
+        this.openApiService.respondWithValidation(
+            201,
+            res,
+            environmentSchema.$id,
+            serializeDates(environment),
+        );
     }
 
     async getAllEnvironments(
