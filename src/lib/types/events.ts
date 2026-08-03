@@ -24,7 +24,10 @@ import {
     DROP_STRATEGIES,
     DROP_TAG_TYPES,
     DROP_TAGS,
+    ENVIRONMENT_CREATED,
+    ENVIRONMENT_DELETED,
     ENVIRONMENT_IMPORT,
+    ENVIRONMENT_UPDATED,
     FEATURE_ARCHIVED,
     FEATURE_COMPLETED,
     FEATURE_CREATED,
@@ -448,6 +451,52 @@ export class StrategyImport extends BaseEvent {
     }) {
         super(STRATEGY_IMPORT, p.auditUser);
         this.data = p.strategy;
+    }
+}
+
+export class EnvironmentCreatedEvent extends BaseEvent {
+    readonly environment: string;
+    readonly data: IEnvironment;
+
+    constructor(p: {
+        environment: IEnvironment;
+        auditUser: IAuditUser;
+    }) {
+        super(ENVIRONMENT_CREATED, p.auditUser);
+        this.environment = p.environment.name;
+        this.data = p.environment;
+    }
+}
+
+export class EnvironmentUpdatedEvent extends BaseEvent {
+    readonly environment: string;
+    readonly data: IEnvironment;
+    readonly preData: IEnvironment;
+
+    constructor(p: {
+        environment: string;
+        data: IEnvironment;
+        preData: IEnvironment;
+        auditUser: IAuditUser;
+    }) {
+        super(ENVIRONMENT_UPDATED, p.auditUser);
+        this.environment = p.environment;
+        this.data = p.data;
+        this.preData = p.preData;
+    }
+}
+
+export class EnvironmentDeletedEvent extends BaseEvent {
+    readonly environment: string;
+    readonly preData: IEnvironment;
+
+    constructor(p: {
+        environment: IEnvironment;
+        auditUser: IAuditUser;
+    }) {
+        super(ENVIRONMENT_DELETED, p.auditUser);
+        this.environment = p.environment.name;
+        this.preData = p.environment;
     }
 }
 

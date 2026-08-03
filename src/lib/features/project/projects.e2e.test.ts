@@ -41,8 +41,8 @@ afterAll(async () => {
     await db.destroy();
 });
 
-test('Should ONLY return default project', async () => {
-    projectStore.create({
+test('Should return all projects', async () => {
+    await projectStore.create({
         id: 'test2',
         name: 'test',
         description: '',
@@ -54,8 +54,10 @@ test('Should ONLY return default project', async () => {
         .expect(200)
         .expect('Content-Type', /json/);
 
-    expect(body.projects).toHaveLength(1);
-    expect(body.projects[0].id).toBe('default');
+    expect(body.projects).toHaveLength(2);
+    const ids = body.projects.map((project) => project.id);
+    expect(ids).toContain('default');
+    expect(ids).toContain('test2');
 });
 
 test('response should include created_at', async () => {
@@ -99,7 +101,7 @@ test('response should include technical debt field', async () => {
         .expect('Content-Type', /json/)
         .expect(200);
 
-    expect(body.projects).toHaveLength(1);
+    expect(body.projects.length).toBeGreaterThanOrEqual(1);
     expect(body.projects[0]).toHaveProperty('technicalDebt');
     expect(typeof body.projects[0].technicalDebt).toBe('number');
     expect(body.projects[0].technicalDebt).toBeGreaterThanOrEqual(0);

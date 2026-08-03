@@ -48,24 +48,38 @@ afterAll(async () => {
     await db.destroy();
 });
 
-test('querying environments in OSS only returns environments that are included in oss', async () => {
+test('querying environments in OSS returns custom environments', async () => {
     await app.request
         .get('/api/admin/environments')
         .expect(200)
         .expect((res) => {
-            expect(res.body.environments).toHaveLength(2);
             const names = res.body.environments.map((env) => env.name);
-            expect(names).toEqual(['development', 'production']);
+            expect(names).toEqual(
+                expect.arrayContaining([
+                    'development',
+                    'production',
+                    'customenvironment',
+                    'customenvironment2',
+                    'customenvironment3',
+                ]),
+            );
         });
 });
 
-test('querying project environments in OSS only returns environments that are included in oss', async () => {
+test('querying project environments in OSS returns custom environments', async () => {
     await app.request
         .get('/api/admin/environments/project/default')
         .expect(200)
         .expect((res) => {
-            expect(res.body.environments).toHaveLength(2);
             const names = res.body.environments.map((env) => env.name);
-            expect(names).toEqual(['development', 'production']);
+            expect(names).toEqual(
+                expect.arrayContaining([
+                    'development',
+                    'production',
+                    'customenvironment',
+                    'customenvironment2',
+                    'customenvironment3',
+                ]),
+            );
         });
 });

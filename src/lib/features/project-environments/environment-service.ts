@@ -1,5 +1,9 @@
+import type EventEmitter from 'events';
 import {
     DefaultStrategyUpdatedEvent,
+    EnvironmentCreatedEvent,
+    EnvironmentDeletedEvent,
+    EnvironmentUpdatedEvent,
     type IAuditUser,
     type IEnvironment,
     type IEnvironmentStore,
@@ -16,6 +20,8 @@ import {
 import type { Logger } from '../../logger.js';
 import {
     BadDataError,
+    ForbiddenError,
+    throwExceedsLimitError,
     UNIQUE_CONSTRAINT_VIOLATION,
 } from '../../error/index.js';
 import NameExistsError from '../../error/name-exists-error.js';
@@ -23,8 +29,15 @@ import { sortOrderSchema } from '../../services/sort-order-schema.js';
 import NotFoundError from '../../error/notfound-error.js';
 import type { IProjectStore } from '../../features/project/project-store-type.js';
 import type { IFlagResolver } from '../../types/experimental.js';
-import type { CreateFeatureStrategySchema } from '../../openapi/index.js';
+import type {
+    CloneEnvironmentSchema,
+    CreateEnvironmentSchema,
+    CreateFeatureStrategySchema,
+    UpdateEnvironmentSchema,
+} from '../../openapi/index.js';
+import { nameType } from '../../routes/util.js';
 import type EventService from '../events/event-service.js';
+import type { ResourceLimitsSchema } from '../../openapi/spec/resource-limits-schema.js';
 
 export default class EnvironmentService {
     private logger: Logger;
@@ -40,6 +53,10 @@ export default class EnvironmentService {
     private eventService: EventService;
 
     private flagResolver: IFlagResolver;
+
+    private resourceLimits: ResourceLimitsSchema;
+
+    private eventBus: EventEmitter;
 
     constructor(
         {
@@ -57,7 +74,12 @@ export default class EnvironmentService {
         {
             getLogger,
             flagResolver,
-        }: Pick<IUnleashConfig, 'getLogger' | 'flagResolver'>,
+            resourceLimits,
+            eventBus,
+        }: Pick<
+            IUnleashConfig,
+            'getLogger' | 'flagResolver' | 'resourceLimits' | 'eventBus'
+        >,
         eventService: EventService,
     ) {
         this.logger = getLogger('services/environment-service.ts');
@@ -67,6 +89,8 @@ export default class EnvironmentService {
         this.projectStore = projectStore;
         this.eventService = eventService;
         this.flagResolver = flagResolver;
+        this.resourceLimits = resourceLimits;
+        this.eventBus = eventBus;
     }
 
     async getAll(): Promise<IEnvironment[]> {
@@ -117,6 +141,166 @@ export default class EnvironmentService {
                 return this.environmentStore.updateSortOrder(key, value);
             }),
         );
+    }
+
+    async validateEnvironmentName(name: string): Promise<void> {
+        try {
+            await nameType.validateAsync(name);
+        } catch (error) {
+            throw new BadDataError(error.message);
+        }
+        const exists = await this.environmentStore.exists(name);
+        if (exists) {
+            throw new NameExistsError(
+                `An environment with the name ${name} already exists`,
+            );
+        }
+    }
+
+    private async validateEnvironmentLimit(): Promise<void> {
+        const limit = Math.max(this.resourceLimits.environments, 1);
+        const environmentCount = await this.environmentStore.count();
+        if (environmentCount >= limit) {
+            throwExceedsLimitError(this.eventBus, {
+                resource: 'environment',
+                limit,
+            });
+        }
+    }
+
+    async createEnvironment(
+        environment: CreateEnvironmentSchema,
+        auditUser: IAuditUser,
+    ): Promise<IEnvironment> {
+        await this.validateEnvironmentName(environment.name);
+        await this.validateEnvironmentLimit();
+
+        const sortOrder =
+            environment.sortOrder ??
+            (await this.environmentStore.getMaxSortOrder()) + 1;
+
+        const createdEnvironment = await this.environmentStore.create({
+            name: environment.name,
+            type: environment.type,
+            sortOrder,
+            enabled: environment.enabled ?? true,
+            ...(environment.requiredApprovals != null
+                ? { requiredApprovals: environment.requiredApprovals }
+                : {}),
+        });
+
+        await this.eventService.storeEvent(
+            new EnvironmentCreatedEvent({
+                environment: createdEnvironment,
+                auditUser,
+            }),
+        );
+
+        return createdEnvironment;
+    }
+
+    async updateEnvironment(
+        name: string,
+        environment: UpdateEnvironmentSchema,
+        auditUser: IAuditUser,
+    ): Promise<IEnvironment> {
+        const previousEnvironment = await this.get(name);
+        if (previousEnvironment.protected) {
+            throw new ForbiddenError(
+                `The environment ${name} is protected and can not be updated`,
+            );
+        }
+
+        const updatedEnvironment = await this.environmentStore.update(
+            {
+                type: environment.type ?? previousEnvironment.type,
+                protected: previousEnvironment.protected,
+                requiredApprovals:
+                    environment.requiredApprovals ??
+                    previousEnvironment.requiredApprovals,
+            },
+            name,
+        );
+        if (environment.sortOrder !== undefined) {
+            await this.environmentStore.updateSortOrder(
+                name,
+                environment.sortOrder,
+            );
+            updatedEnvironment.sortOrder = environment.sortOrder;
+        }
+
+        await this.eventService.storeEvent(
+            new EnvironmentUpdatedEvent({
+                environment: name,
+                preData: previousEnvironment,
+                data: updatedEnvironment,
+                auditUser,
+            }),
+        );
+
+        return updatedEnvironment;
+    }
+
+    async deleteEnvironment(
+        name: string,
+        auditUser: IAuditUser,
+    ): Promise<void> {
+        const environment = await this.get(name);
+        if (environment.protected) {
+            throw new ForbiddenError(
+                `The environment ${name} is protected and can not be deleted`,
+            );
+        }
+
+        await this.environmentStore.delete(name);
+
+        await this.eventService.storeEvent(
+            new EnvironmentDeletedEvent({
+                environment,
+                auditUser,
+            }),
+        );
+    }
+
+    async cloneEnvironment(
+        sourceName: string,
+        environment: CloneEnvironmentSchema,
+        auditUser: IAuditUser,
+    ): Promise<IEnvironment> {
+        const sourceEnvironment = await this.get(sourceName);
+
+        const createdEnvironment = await this.createEnvironment(
+            {
+                name: environment.name,
+                type: environment.type ?? sourceEnvironment.type,
+            },
+            auditUser,
+        );
+
+        const projects = environment.projects ?? [];
+        if (projects.length > 0) {
+            await Promise.all(
+                projects.map((project) =>
+                    this.featureEnvironmentStore.connectProject(
+                        createdEnvironment.name,
+                        project,
+                        true,
+                    ),
+                ),
+            );
+            await this.featureEnvironmentStore.copyEnvironmentFeaturesByProjects(
+                sourceName,
+                createdEnvironment.name,
+                projects,
+            );
+            await this.featureEnvironmentStore.cloneStrategies(
+                sourceName,
+                createdEnvironment.name,
+                projects,
+            );
+        }
+
+        return createdEnvironment;
     }
 
     async toggleEnvironment(name: string, value: boolean): Promise<void> {
