@@ -39,6 +39,12 @@ jobs:
           # (read/write) on this repo. Required because the built-in GITHUB_TOKEN
           # can never push commits that touch .github/workflows/ — which upstream
           # syncs regularly do. A PAT also makes the sync PR trigger CI.
+          #
+          # ROTATION: the current token was created 2026-08-05 and is valid for
+          # 1 year (expires ~2026-08-05 + 1y). When this workflow starts failing
+          # with auth errors, generate a new fine-grained PAT (same three
+          # permissions, this repo only) and update the SYNC_TOKEN secret under
+          # Settings -> Secrets and variables -> Actions. No file changes needed.
           token: ${{ secrets.SYNC_TOKEN || github.token }}
 
       - name: Fetch upstream main
