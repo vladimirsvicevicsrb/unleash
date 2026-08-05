@@ -1,4 +1,4 @@
-name: Nightly fork sync with upstream Unleash
+name: Daily fork sync with upstream Unleash
 
 # Keeps this private fork up to date with Unleash/unleash (OSS) while
 # preserving our own changes on main.
