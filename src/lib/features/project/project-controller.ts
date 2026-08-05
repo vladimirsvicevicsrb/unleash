@@ -19,6 +19,7 @@ import VariantsController from '../../routes/admin-api/project/variants.js';
 import {
     createRequestSchema,
     createResponseSchema,
+    resourceCreatedResponseSchema,
     type CreateProjectSchema,
     emptyResponse,
     outdatedSdksSchema,
@@ -93,7 +94,9 @@ export default class ProjectController extends Controller {
                         'Creates a new [project](https://docs.getunleash.io/concepts/projects).',
                     requestBody: createRequestSchema('createProjectSchema'),
                     responses: {
-                        201: createResponseSchema('projectCreatedSchema'),
+                        201: resourceCreatedResponseSchema(
+                            'projectCreatedSchema',
+                        ),
                         ...getStandardResponses(400, 401, 403, 409),
                     },
                 }),
@@ -154,28 +157,6 @@ export default class ProjectController extends Controller {
                 this.openApiService.validPath({
                     tags: ['Projects'],
                     operationId: 'deleteProject',
-                    release: { stable: '8.0.3' },
-                    summary: 'Delete a project.',
-                    description:
-                        'Deletes the project with the given id. The default project can not be deleted, and a project with active feature flags can not be deleted; archive or delete its flags first.',
-                    responses: {
-                        200: emptyResponse,
-                        ...getStandardResponses(401, 403, 404),
-                    },
-                }),
-            ],
-        });
-
-        this.route({
-            path: '/:projectId/delete',
-            method: 'post',
-            acceptAnyContentType: true,
-            handler: this.deleteProject,
-            permission: DELETE_PROJECT,
-            middleware: [
-                this.openApiService.validPath({
-                    tags: ['Projects'],
-                    operationId: 'deleteProjectPost',
                     release: { stable: '8.0.3' },
                     summary: 'Delete a project.',
                     description:
@@ -362,6 +343,7 @@ export default class ProjectController extends Controller {
             res,
             projectCreatedSchema.$id,
             serializeDates(createdProject),
+            { location: `projects/${createdProject.id}` },
         );
     }
 

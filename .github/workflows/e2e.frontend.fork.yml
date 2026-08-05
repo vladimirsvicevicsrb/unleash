@@ -1,0 +1,82 @@
+name: e2e:frontend (fork)
+
+# Fork replacement for e2e.frontend.yaml: builds the Unleash Docker image from
+# THIS repo's source and runs the OSS Cypress specs against it. The upstream
+# workflow tests the prebuilt unleashorg/unleash-enterprise image and needs
+# Unleash's private test license, so it can never pass (or test our code) here.
+# Enterprise specs are omitted — they cover features the OSS build doesn't have.
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-image:
+    if: github.repository_owner != 'Unleash'
+    uses: ./.github/workflows/build-docker-image.yml
+    with:
+      image-tag: unleash-fork:test
+      artifact-name: unleash-fork-image
+
+  e2e-oss:
+    if: github.repository_owner != 'Unleash'
+    needs: build-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - oss/segments/segments.spec.ts
+          - oss/feature/feature.spec.ts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v5
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Cache Cypress binary
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/Cypress
+          key: cypress-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Download image artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: unleash-fork-image
+          path: /tmp
+      - name: Load image
+        run: docker load < /tmp/image.tar.gz
+      - name: Start Unleash test instance (built from source)
+        run: docker compose -f .github/docker-compose.test-fork.yml up -d --wait -t 120
+      - name: Run Cypress
+        uses: cypress-io/github-action@v7.4.1
+        with:
+          working-directory: frontend
+          env: AUTH_USER=admin,AUTH_PASSWORD=unleash4all
+          config: baseUrl=http://localhost:4242
+          spec: cypress/${{ matrix.test }}
+          install: false
+      - name: Set artifact name
+        if: always()
+        id: artifact-name
+        run: echo "name=cypress-fork-artifacts-$(echo '${{ matrix.test }}' | tr '/' '-')" >> $GITHUB_OUTPUT
+      - name: Upload Cypress artifacts
+        uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: ${{ steps.artifact-name.outputs.name }}
+          path: |
+            frontend/cypress/screenshots
+            frontend/cypress/videos
+          if-no-files-found: ignore
+          retention-days: 3
