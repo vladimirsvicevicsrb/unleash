@@ -13,6 +13,8 @@ permissions:
 
 jobs:
   build:
+    # Upstream-only: pings the private unleash-enterprise repo about OSS commits
+    if: github.repository_owner == 'Unleash'
     runs-on: ubuntu-latest
 
     steps:
