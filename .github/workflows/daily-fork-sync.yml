@@ -35,6 +35,11 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          # SYNC_TOKEN: fine-grained PAT with Contents + Workflows + Pull requests
+          # (read/write) on this repo. Required because the built-in GITHUB_TOKEN
+          # can never push commits that touch .github/workflows/ — which upstream
+          # syncs regularly do. A PAT also makes the sync PR trigger CI.
+          token: ${{ secrets.SYNC_TOKEN || github.token }}
 
       - name: Fetch upstream main
         run: |
@@ -56,7 +61,7 @@ jobs:
       - name: Open PR if none exists (otherwise the push above updated it)
         if: steps.check.outputs.new != '0'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
         run: |
           EXISTING=$(gh pr list --head "$SYNC_BRANCH" --base main --state open --json number --jq 'length')
           if [ "$EXISTING" = "0" ]; then
