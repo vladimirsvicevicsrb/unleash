@@ -52,7 +52,6 @@ export type IFlagKey =
     | 'deltaApi'
     | 'uniqueSdkTracking'
     | 'consumptionModel'
-    | 'customMetrics'
     | 'impactViews'
     | 'disableImpactMetrics'
     | 'etagByEnv'
@@ -68,7 +67,6 @@ export type IFlagKey =
     | 'userTokenWithClientApiLoggingKillSwitch'
     | 'multiMetricChart'
     | 'logRocketEnabled'
-    | 'newProjectList'
     | 'newModalDesign'
     | 'allowDeprecatedApiTokenMiddleware'
     | 'newProfileDropdown'
@@ -312,10 +310,6 @@ const flags: IFlags = {
     ),
     logRocketEnabled: parseEnvVarBoolean(
         process.env.UNLEASH_EXPERIMENTAL_LOGROCKET_ENABLED,
-        false,
-    ),
-    newProjectList: parseEnvVarBoolean(
-        process.env.UNLEASH_EXPERIMENTAL_NEW_PROJECT_LIST,
         false,
     ),
     newModalDesign: parseEnvVarBoolean(

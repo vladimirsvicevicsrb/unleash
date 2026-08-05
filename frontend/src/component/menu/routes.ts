@@ -27,6 +27,7 @@ import { CreateStrategy } from 'component/strategies/CreateStrategy/CreateStrate
 import { EditStrategy } from 'component/strategies/EditStrategy/EditStrategy';
 import { SplashPage } from 'component/splash/SplashPage/SplashPage';
 import { CreateUnleashContextPage } from 'component/context/CreateUnleashContext/CreateUnleashContextPage';
+import { CloneContextPage } from 'component/context/CloneContext/CloneContextPage';
 import { CreateSegment } from 'component/segments/CreateSegment/CreateSegment';
 import { EditSegment } from 'component/segments/EditSegment/EditSegment';
 import type { INavigationMenuItem, IRoute } from 'interfaces/route';
@@ -55,7 +56,6 @@ import { WhatsNewPage } from 'component/whatsNew/WhatsNewPage';
 import { ReleaseManagement } from 'component/releases/ReleaseManagement/ReleaseManagement';
 import { CreateReleasePlanTemplate } from 'component/releases/ReleasePlanTemplate/CreateReleasePlanTemplate';
 import { EditReleasePlanTemplate } from 'component/releases/ReleasePlanTemplate/EditReleasePlanTemplate';
-import { ExploreCounters } from 'component/counters/ExploreCounters/ExploreCounters.js';
 import { UnknownFlagsTable } from 'component/unknownFlags/UnknownFlagsTable';
 import { ChangeRequests } from 'component/changeRequest/ChangeRequests/ChangeRequests';
 import { LazyStoriesPage } from 'component/stories/LazyStoriesPage.tsx';
@@ -225,22 +225,20 @@ export const routes: IRoute[] = [
         menu: { main: true },
     },
 
-    // Counters
-    {
-        path: '/custom-metrics',
-        title: 'Custom metrics',
-        component: ExploreCounters,
-        type: 'protected',
-        menu: { main: true },
-        flag: 'customMetrics',
-    },
-
     // Context
     {
         path: '/context/create',
         parent: '/context',
         title: 'Create',
         component: CreateUnleashContextPage,
+        type: 'protected',
+        menu: {},
+    },
+    {
+        path: '/context/clone/:name',
+        parent: '/context',
+        title: 'Clone',
+        component: CloneContextPage,
         type: 'protected',
         menu: {},
     },

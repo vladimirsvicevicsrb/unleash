@@ -20,6 +20,7 @@ import { StrategySeparator } from 'component/common/StrategySeparator/StrategySe
 import { StrategyList } from 'component/common/StrategyList/StrategyList';
 import { StrategyListItem } from 'component/common/StrategyList/StrategyListItem';
 import { formatDateYMDHMS } from 'utils/formatDate';
+import { useLocationSettings } from 'hooks/useLocationSettings';
 
 const StyledAccordion = styled(Accordion, {
     shouldForwardProp: (prop) => prop !== 'status' && prop !== 'hasAutomation',
@@ -78,6 +79,9 @@ const StyledTitle = styled('span', {
 const StyledSecondaryLabel = styled('span')(({ theme }) => ({
     color: theme.palette.text.secondary,
     fontSize: theme.fontSizes.smallBody,
+    [theme.breakpoints.down(450)]: {
+        display: 'none',
+    },
 }));
 
 const StyledStartedAt = styled('span')(({ theme }) => ({
@@ -130,6 +134,7 @@ export const ReleasePlanMilestone = ({
     renderStrategy,
 }: IReleasePlanMilestoneProps) => {
     const [expanded, setExpanded] = useState(defaultExpanded);
+    const { locationSettings } = useLocationSettings();
     const hasAutomation = Boolean(automationSection);
     const isPreviousMilestonePaused =
         previousMilestoneStatus?.type === 'paused' ||
@@ -173,6 +178,7 @@ export const ReleasePlanMilestone = ({
                                                 Started{' '}
                                                 {formatDateYMDHMS(
                                                     milestone.startedAt,
+                                                    locationSettings.locale,
                                                 )}
                                             </StyledStartedAt>
                                         )}
@@ -225,6 +231,7 @@ export const ReleasePlanMilestone = ({
                                             Started{' '}
                                             {formatDateYMDHMS(
                                                 milestone.startedAt,
+                                                locationSettings.locale,
                                             )}
                                         </StyledStartedAt>
                                     )}

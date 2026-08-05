@@ -139,19 +139,17 @@ exports[`returns all baseRoutes 1`] = `
     "type": "protected",
   },
   {
-    "flag": "customMetrics",
-    "menu": {
-      "main": true,
-    },
-    "path": "/custom-metrics",
-    "title": "Custom metrics",
+    "menu": {},
+    "parent": "/context",
+    "path": "/context/create",
+    "title": "Create",
     "type": "protected",
   },
   {
     "menu": {},
     "parent": "/context",
-    "path": "/context/create",
-    "title": "Create",
+    "path": "/context/clone/:name",
+    "title": "Clone",
     "type": "protected",
   },
   {

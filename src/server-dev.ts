@@ -3,6 +3,7 @@ import { createConfig } from './lib/create-config.js';
 import { LogLevel } from './lib/logger.js';
 import { ApiTokenType } from './lib/types/model.js';
 
+// local server configuraion for development purposes.
 process.nextTick(async () => {
     try {
         await start(
@@ -50,7 +51,6 @@ process.nextTick(async () => {
                         deltaApi: true,
                         uniqueSdkTracking: true,
                         strictSchemaValidation: true,
-                        customMetrics: true,
                         disableImpactMetrics: false,
                         regexConstraintOperator: true,
                         semverGteConstraintOperators: true,
