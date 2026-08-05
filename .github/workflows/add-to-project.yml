@@ -10,5 +10,7 @@ on:
 
 jobs:
   add-to-project:
+      # Upstream-only: needs Unleash's org project board token, which forks don't have
+      if: github.repository_owner == 'Unleash'
       uses: unleash/.github/.github/workflows/add-item-to-project.yml@main
       secrets: inherit
