@@ -5,7 +5,7 @@ import { loadingData } from './loadingData.ts';
 import { styled } from '@mui/material';
 import type { ProjectsListView } from './hooks/useProjectsListState.ts';
 import { ProjectsListTable } from './ProjectsListTable/ProjectsListTable.tsx';
-import type { ProjectListItem } from 'hooks/api/getters/useProjects/useProjects.ts';
+import type { ProjectSchema } from 'openapi';
 
 const StyledGridContainer = styled('div')(({ theme }) => ({
     display: 'grid',
@@ -27,10 +27,10 @@ type ProjectGroupProps = {
     sectionTitle?: string;
     sectionSubtitle?: string;
     HeaderActions?: ReactNode;
-    projects: ProjectListItem[];
+    projects: ProjectSchema[];
     loading: boolean;
     placeholder?: string;
-    ProjectCardComponent?: ComponentType<ProjectListItem & any>;
+    ProjectCardComponent?: ComponentType<ProjectSchema & any>;
     link?: boolean;
     view?: ProjectsListView;
 };

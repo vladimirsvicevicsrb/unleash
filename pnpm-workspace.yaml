@@ -62,10 +62,12 @@ minimumReleaseAgeExclude:
   - form-data@4.0.6
   # Renovate security update: http-proxy-middleware@3.0.7
   - http-proxy-middleware@3.0.7
-  # Renovate security update: fast-uri@3.1.4
-  - fast-uri@3.1.4
-  # Renovate security update: brace-expansion@5.0.8
-  - brace-expansion@5.0.8
+  # Renovate security update: fast-uri@3.1.4 || 3.1.5
+  - fast-uri@3.1.4 || 3.1.5
+  # Security update: brace-expansion@1.1.18 || 2.1.4 || 5.0.9
+  - brace-expansion@1.1.18 || 2.1.4 || 5.0.9
+  # Renovate security update: ip-address@10.2.1 || 10.3.1
+  - ip-address@10.2.1 || 10.3.1
 
 patchedDependencies:
   # Fixes a bug in getAutoSortingFn where `.slice(10)` skips the first 10 rows
@@ -87,13 +89,13 @@ overrides:
   esbuild: "0.28.1"
   axios: "1.18.0"
   body-parser: "1.20.6"
-  "brace-expansion@^1.1.7": "1.1.16"
-  "brace-expansion@^2.0.1": "2.1.2"
-  "brace-expansion@^5.0.0": "5.0.8"
-  fast-uri: "3.1.4"
+  "brace-expansion@^1.1.7": "1.1.18"
+  "brace-expansion@^2.0.1": "2.1.4"
+  "brace-expansion@^5.0.0": "5.0.9"
+  fast-uri: "3.1.5"
   form-data: "4.0.6"
   glob: "^10.5.0"
-  ip-address: "10.2.0"
+  ip-address: "10.3.1"
   ip: "^2.0.1"
   json-schema: "^0.4.0"
   json5: "^2.2.2"

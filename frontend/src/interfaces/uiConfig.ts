@@ -84,7 +84,6 @@ export type UiFlags = {
     sessionInspector?: boolean;
     consumptionModel?: boolean;
     consumptionModelUI?: boolean;
-    customMetrics?: boolean;
     disableImpactMetrics?: boolean;
     impactViews?: boolean;
     plausibleMetrics?: boolean;
@@ -100,7 +99,6 @@ export type UiFlags = {
     impactMetricsFlagPage?: boolean;
     multiMetricChart?: boolean;
     logRocketEnabled?: boolean;
-    newProjectList?: boolean;
     newModalDesign?: boolean;
     newProfileDropdown?: boolean;
     learningLab?: Variant;
