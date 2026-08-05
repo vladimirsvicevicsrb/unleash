@@ -132,18 +132,32 @@ test('deletes a project', async () => {
     );
 });
 
-test('deletes a project via the POST alias', async () => {
+test('POST /:projectId/delete stays reserved for bulk-deleting archived features', async () => {
+    // Regression: a project-delete POST alias on this path used to shadow the
+    // archived-features bulk delete route from project-archive.ts.
     await app.request
         .post('/api/admin/projects')
-        .send({ id: 'delete-project-post', name: 'Delete me too' })
+        .send({ id: 'bulk-delete-project', name: 'Bulk delete' })
         .expect(201);
 
     await app.request
-        .post('/api/admin/projects/delete-project-post/delete')
+        .post('/api/admin/projects/bulk-delete-project/features')
+        .send({ name: 'bulk-delete-flag' })
+        .expect(201);
+
+    await app.request
+        .delete(
+            '/api/admin/projects/bulk-delete-project/features/bulk-delete-flag',
+        )
+        .expect(202);
+
+    await app.request
+        .post('/api/admin/projects/bulk-delete-project/delete')
+        .send({ features: ['bulk-delete-flag'] })
         .expect(200);
 
-    expect(await db.stores.projectStore.hasProject('delete-project-post')).toBe(
-        false,
+    expect(await db.stores.projectStore.hasProject('bulk-delete-project')).toBe(
+        true,
     );
 });
 

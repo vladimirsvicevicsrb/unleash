@@ -22,6 +22,10 @@ const vitestConfig = vitestDefineConfig({
         globals: true,
         setupFiles: 'src/setupTests.ts',
         environment: 'jsdom',
+        // Several render-heavy suites (onboarding intro, paginated project
+        // flags) run at 60-80% of the 5s default locally and tip over under
+        // CI contention. Give them headroom instead of chasing timeouts.
+        testTimeout: 20_000,
         exclude: [...configDefaults.exclude, '**/cypress/**'],
         server: {
             deps: {

@@ -6,7 +6,10 @@ import type EnvironmentService from '../project-environments/environment-service
 import { ADMIN, NONE } from '../../types/permissions.js';
 import type { OpenApiService } from '../../services/openapi-service.js';
 import { createRequestSchema } from '../../openapi/util/create-request-schema.js';
-import { createResponseSchema } from '../../openapi/util/create-response-schema.js';
+import {
+    createResponseSchema,
+    resourceCreatedResponseSchema,
+} from '../../openapi/util/create-response-schema.js';
 import {
     environmentsSchema,
     type EnvironmentsSchema,
@@ -74,7 +77,7 @@ export class EnvironmentsController extends Controller {
                         'Creates a new environment with the provided name and type.',
                     requestBody: createRequestSchema('createEnvironmentSchema'),
                     responses: {
-                        201: createResponseSchema('environmentSchema'),
+                        201: resourceCreatedResponseSchema('environmentSchema'),
                         ...getStandardResponses(400, 401, 403, 409),
                     },
                 }),
@@ -162,7 +165,7 @@ export class EnvironmentsController extends Controller {
                         'Creates a new environment based on the environment with `name`, copying enabled features and strategies for the selected projects.',
                     requestBody: createRequestSchema('cloneEnvironmentSchema'),
                     responses: {
-                        201: createResponseSchema('environmentSchema'),
+                        201: resourceCreatedResponseSchema('environmentSchema'),
                         ...getStandardResponses(400, 401, 403, 404, 409),
                     },
                 }),
@@ -311,6 +314,7 @@ export class EnvironmentsController extends Controller {
             res,
             environmentSchema.$id,
             serializeDates(environment),
+            { location: `environments/${environment.name}` },
         );
     }
 
@@ -359,6 +363,7 @@ export class EnvironmentsController extends Controller {
             res,
             environmentSchema.$id,
             serializeDates(environment),
+            { location: `environments/${environment.name}` },
         );
     }
 

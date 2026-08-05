@@ -20,6 +20,10 @@ concurrency:
 
 jobs:
   e2e-build:
+    # Upstream-only: the e2e instance runs unleashorg/unleash-enterprise:latest and
+    # needs the private UNLEASH_TEST_LICENSE secret. Forks run e2e.frontend.fork.yaml
+    # against a locally built image instead.
+    if: github.repository_owner == 'Unleash'
     runs-on: ubuntu-latest
     env:
       WORK_DIR: ${{ inputs.working-directory || '.' }}
@@ -54,6 +58,7 @@ jobs:
           retention-days: 1
 
   e2e:
+    if: github.repository_owner == 'Unleash'
     needs: e2e-build
     runs-on: ubuntu-latest
     timeout-minutes: 10
