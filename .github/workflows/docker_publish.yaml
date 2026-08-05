@@ -24,6 +24,8 @@ permissions:
 
 jobs:
   prepare:
+    # Upstream-only: publishes to unleashorg Docker Hub with their credentials
+    if: github.repository_owner == 'Unleash'
     runs-on: ubuntu-24.04
     outputs:
       tags: ${{ steps.meta.outputs.tags }}

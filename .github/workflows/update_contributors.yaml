@@ -11,6 +11,8 @@ permissions:
 
 jobs:
   build:
+    # Upstream-only: needs the Unleash bot token to push contributor updates
+    if: github.repository_owner == 'Unleash'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
