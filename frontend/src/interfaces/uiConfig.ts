@@ -59,6 +59,7 @@ export type UiFlags = {
     personalAccessTokensKillSwitch?: boolean;
     demo?: boolean;
     quickTourDemo?: boolean;
+    introAdvancedSteps?: boolean;
     interactiveDemoKillSwitch?: boolean;
     advancedPlayground?: boolean;
     strategyVariant?: boolean;
@@ -106,7 +107,6 @@ export type UiFlags = {
     accessRequestsNotifications?: boolean;
     flightRecorderFrontend?: Variant;
     accessRequestsMenuIndicator?: boolean;
-    projectReleaseTemplates?: boolean;
     topLabelInputs?: boolean;
     searchDocsWidget?: boolean;
 };
