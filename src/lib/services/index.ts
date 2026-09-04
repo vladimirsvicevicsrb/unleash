@@ -188,11 +188,12 @@ import {
     createReleasePlanMilestoneStrategyService,
 } from '../features/release-plans/createReleasePlanMilestoneStrategyService.js';
 import type { ReleasePlanMilestoneStrategyService } from '../features/release-plans/release-plan-milestone-strategy-service.js';
+import { createApiTokenV2Service } from '../features/apitokensv2/index.js';
 import {
-    ApiTokenV2Service,
-    FakeApiTokenV2Store,
-} from '../features/apitokensv2/index.js';
-import FakeEnvironmentStore from '../features/project-environments/fake-environment-store.js';
+    createFakeApiTokenV2Service,
+    type AdminApiTokenV2Service,
+    type ReadOnlyApiTokenV2Service,
+} from '../features/apitokensv2/api-token-v2-service.js';
 
 export const createServices = (
     stores: IUnleashStores,
@@ -229,16 +230,16 @@ export const createServices = (
 
     const resourceLimitsService = new ResourceLimitsService(config);
 
-    const apiTokenV2Service = new ApiTokenV2Service(
-        db
-            ? stores
-            : {
-                  apiTokenV2Store: new FakeApiTokenV2Store(),
-                  environmentStore: new FakeEnvironmentStore(),
-              },
-        config,
-        { eventService, resourceLimitsService },
-    );
+    const apiTokenV2Service = db
+        ? createApiTokenV2Service(config)(db)
+        : createFakeApiTokenV2Service(config, stores, {
+              eventService,
+              resourceLimitsService,
+          });
+
+    const transactionalApiTokenV2Service = db
+        ? withTransactional(createApiTokenV2Service(config), db)
+        : withFakeTransactional(apiTokenV2Service);
 
     const clientMetricsServiceV2 = new ClientMetricsServiceV2(
         stores,
@@ -534,6 +535,7 @@ export const createServices = (
         versionService,
         apiTokenService,
         apiTokenV2Service,
+        transactionalApiTokenV2Service,
         emailService,
         userService,
         resetTokenService,
@@ -608,6 +610,7 @@ export {
     EmailService,
     AccessService,
     ApiTokenService,
+    createApiTokenV2Service,
     UserService,
     ResetTokenService,
     SettingService,
@@ -649,6 +652,8 @@ export {
     UiConfigService,
     ResourceLimitsService,
     ConfigurationRevisionService,
+    type AdminApiTokenV2Service,
+    type ReadOnlyApiTokenV2Service,
     type ReleasePlanMilestoneStrategyService,
 };
 
@@ -658,7 +663,8 @@ export interface IUnleashServices {
     accountService: AccountService;
     addonService: AddonService;
     apiTokenService: ApiTokenService;
-    apiTokenV2Service: ApiTokenV2Service;
+    apiTokenV2Service: ReadOnlyApiTokenV2Service;
+    transactionalApiTokenV2Service: WithTransactional<AdminApiTokenV2Service>;
     clientInstanceService: ClientInstanceService;
     clientMetricsServiceV2: ClientMetricsServiceV2;
     contextService: ContextService;

@@ -12,6 +12,7 @@ import Info from '@mui/icons-material/Info';
 import Loader from '../Loader/Loader.tsx';
 import copy from 'copy-to-clipboard';
 import useToast from 'hooks/useToast';
+import { useEventTracker } from 'hooks/useEventTracker';
 import React from 'react';
 import { type ReactNode, useState } from 'react';
 import MobileGuidanceBG from 'assets/img/mobileGuidanceBg.svg?react';
@@ -22,6 +23,7 @@ import {
 } from './FormTemplate.styles';
 import { relative } from 'themes/themeStyles';
 import { ApiCommandBlock } from './ApiCommandBlock.tsx';
+import { apiCommandTrackingProps } from './apiCommandTrackingProps.ts';
 
 interface ICreateProps {
     title?: ReactNode;
@@ -256,10 +258,19 @@ const FormTemplate: React.FC<ICreateProps> = ({
     sidebar,
 }) => {
     const { setToastData } = useToast();
+    const { trackEvent } = useEventTracker();
     const smallScreen = useMediaQuery(`(max-width:${1099}px)`);
     const copyCommand = () => {
         if (formatApiCode !== undefined) {
-            if (copy(formatApiCode())) {
+            const command = formatApiCode();
+            const copied = copy(command);
+            trackEvent('api-command-copied', {
+                props: {
+                    action: copied ? 'succeeded' : 'failed',
+                    ...apiCommandTrackingProps(command),
+                },
+            });
+            if (copied) {
                 setToastData({
                     text: 'Command copied',
                     autoHideDuration: 6000,
@@ -433,6 +444,8 @@ const GuidanceContent: React.FC<
     showLink = true,
     fixedDocumentationHeight,
 }) => {
+    const { trackEvent } = useEventTracker();
+
     const StyledDocumentationIconWrapper = styled('div')({
         height: '2rem',
         display: 'grid',
@@ -475,6 +488,14 @@ const GuidanceContent: React.FC<
                             <StyledLinkIcon />
                             <StyledDocumentationLink
                                 href={documentationLink}
+                                onClick={() =>
+                                    trackEvent('docs-opened', {
+                                        props: {
+                                            href: documentationLink ?? '',
+                                            action: 'clicked',
+                                        },
+                                    })
+                                }
                                 rel='noopener noreferrer'
                                 target='_blank'
                             >

@@ -108,17 +108,15 @@ const MilestoneListRendererCore = ({
                         <MilestoneAutomationSection status={status}>
                             {readonly ? (
                                 <ReadonlyMilestoneTransitionDisplay
-                                    intervalMinutes={
+                                    transitionCondition={
                                         milestone.transitionCondition
-                                            .intervalMinutes
                                     }
                                     status={status}
                                 />
                             ) : (
                                 <MilestoneTransitionDisplay
-                                    intervalMinutes={
+                                    transitionCondition={
                                         milestone.transitionCondition
-                                            .intervalMinutes
                                     }
                                     targetMilestoneId={nextMilestoneId}
                                     sourceMilestoneStartedAt={

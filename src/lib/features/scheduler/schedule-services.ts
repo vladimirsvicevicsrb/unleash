@@ -38,6 +38,7 @@ export const scheduleServices = (
         unknownFlagsService,
         edgeService,
         apiTokenV2Service,
+        transactionalApiTokenV2Service,
     } = services;
 
     schedulerService.schedule(
@@ -53,7 +54,12 @@ export const scheduleServices = (
     );
 
     schedulerService.schedule(
-        apiTokenService.fetchActiveTokens.bind(apiTokenService),
+        async () => {
+            await Promise.all([
+                apiTokenService.fetchActiveTokens(),
+                apiTokenV2Service.fetchActiveTokens(),
+            ]);
+        },
         minutesToMilliseconds(1),
         'fetchActiveTokens',
         0, // no jitter, we need tokens at startup
@@ -63,6 +69,13 @@ export const scheduleServices = (
         apiTokenService.updateLastSeen.bind(apiTokenService),
         minutesToMilliseconds(3),
         'updateLastSeen',
+    );
+
+    schedulerService.schedule(
+        apiTokenV2Service.pollTokenChanges.bind(apiTokenV2Service),
+        secondsToMilliseconds(10),
+        'pollApiTokenV2Changes',
+        0,
     );
 
     // TODO this works fine for keeping labeledAppCounts up to date, but
@@ -215,9 +228,16 @@ export const scheduleServices = (
         'clearExpiredEdgeNonces',
     );
     schedulerService.schedule(
-        apiTokenV2Service.deleteSystemCreatedTokensNotSeen.bind(
-            apiTokenV2Service,
-        ),
+        async () => {
+            const deleted = await transactionalApiTokenV2Service.transactional(
+                // delete + audit events: together
+                (service) => service.deleteSystemCreatedTokensNotSeen(),
+            );
+            // after deletion success, clear cache
+            apiTokenV2Service.invalidateCache(
+                deleted.map((token) => token.selector),
+            );
+        },
         minutesToMilliseconds(10),
         'deleteSystemCreatedTokensNotSeen',
     );

@@ -1,16 +1,22 @@
-import BoltIcon from '@mui/icons-material/Bolt';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import { Button, styled } from '@mui/material';
 import type { MilestoneStatus } from './ReleasePlanMilestoneStatus.tsx';
-import { MilestoneProgressionTimeInput } from '../MilestoneProgressionForm/MilestoneProgressionTimeInput.tsx';
 import {
-    getTimeValueAndUnitFromMinutes,
-    useMilestoneProgressionForm,
-} from '../hooks/useMilestoneProgressionForm.js';
-import type { ChangeMilestoneProgressionSchema } from 'openapi';
+    ReadonlyTransitionConditionRow,
+    TransitionConditionRow,
+} from '../shared/TransitionConditionRow.tsx';
+import { TransitionConditionInput } from '../MilestoneProgressionForm/TransitionConditionInput.tsx';
+import { getValueAndUnitFromCondition } from '../hooks/useTransitionConditionInput.ts';
+import { useTransitionConditionForm } from '../hooks/useTransitionConditionForm.ts';
+import { isSameCondition } from '../utils/isSameCondition.ts';
+import { isTimeCondition } from 'interfaces/releasePlans';
+import type {
+    ChangeMilestoneProgressionSchema,
+    TransitionConditionSchema,
+} from 'openapi';
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
-import { useMilestoneProgressionInfo } from '../hooks/useMilestoneProgressionInfo.ts';
+import { TimeProgressionInfo } from '../shared/TimeProgressionInfo.tsx';
 import { UPDATE_FEATURE_STRATEGY } from 'component/providers/AccessProvider/permissions.ts';
 import PermissionButton from 'component/common/PermissionButton/PermissionButton.tsx';
 import PermissionIconButton from 'component/common/PermissionIconButton/PermissionIconButton.tsx';
@@ -35,48 +41,6 @@ const StyledFormWrapper = styled('div', {
         padding: theme.spacing(1.5, 2),
         borderRadius: `${theme.shape.borderRadiusLarge}px`,
     }),
-}));
-
-const StyledDisplayContainer = styled('div')(({ theme }) => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: theme.spacing(1),
-    justifyContent: 'space-between',
-    width: '100%',
-}));
-
-const StyledContentGroup = styled('div')(({ theme }) => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: theme.spacing(1),
-    [theme.breakpoints.down(600)]: {
-        flexWrap: 'wrap',
-    },
-}));
-
-const StyledIcon = styled(BoltIcon, {
-    shouldForwardProp: (prop) => prop !== 'status',
-})<{ status?: MilestoneStatus }>(({ theme, status }) => ({
-    color: theme.palette.common.white,
-    fontSize: 18,
-    flexShrink: 0,
-    backgroundColor:
-        status?.type === 'completed'
-            ? theme.palette.neutral.border
-            : theme.palette.primary.main,
-    borderRadius: '50%',
-    padding: theme.spacing(0.25),
-}));
-
-const StyledLabel = styled('span', {
-    shouldForwardProp: (prop) => prop !== 'status',
-})<{ status?: MilestoneStatus }>(({ theme, status }) => ({
-    color:
-        status?.type === 'completed'
-            ? theme.palette.text.secondary
-            : theme.palette.text.primary,
-    fontSize: theme.typography.body2.fontSize,
-    flexShrink: 0,
 }));
 
 const StyledButtonGroup = styled('div', {
@@ -105,15 +69,8 @@ const StyledErrorMessage = styled('span')(({ theme }) => ({
     paddingLeft: theme.spacing(3.25),
 }));
 
-const StyledInfoLine = styled('span')(({ theme }) => ({
-    color: theme.palette.text.secondary,
-    fontSize: theme.typography.caption.fontSize,
-    paddingLeft: theme.spacing(3.25),
-    fontStyle: 'italic',
-}));
-
 interface IMilestoneTransitionDisplayProps {
-    intervalMinutes: number;
+    transitionCondition: TransitionConditionSchema;
     targetMilestoneId: string;
     sourceMilestoneStartedAt?: string | null;
     onSave: (
@@ -127,32 +84,26 @@ interface IMilestoneTransitionDisplayProps {
 }
 
 export const ReadonlyMilestoneTransitionDisplay = ({
-    intervalMinutes,
+    transitionCondition,
     status,
 }: {
-    intervalMinutes: number;
+    transitionCondition: TransitionConditionSchema;
     status?: MilestoneStatus;
 }) => {
-    const initial = getTimeValueAndUnitFromMinutes(intervalMinutes);
+    const initial = getValueAndUnitFromCondition(transitionCondition);
 
     return (
-        <StyledDisplayContainer>
-            <StyledContentGroup>
-                <StyledIcon status={status} />
-                <StyledLabel status={status}>
-                    Proceed to the next milestone after
-                </StyledLabel>
-                <span style={{ fontSize: 'inherit' }}>
-                    {initial.value} {initial.unit}
-                </span>
-                <StyledLabel status={status}>from milestone start</StyledLabel>
-            </StyledContentGroup>
-        </StyledDisplayContainer>
+        <ReadonlyTransitionConditionRow
+            muted={status?.type === 'completed'}
+            label='Proceed to the next milestone after'
+            type={transitionCondition.type}
+            value={`${initial.value} ${initial.unit}`}
+        />
     );
 };
 
 export const MilestoneTransitionDisplay = ({
-    intervalMinutes,
+    transitionCondition,
     targetMilestoneId,
     sourceMilestoneStartedAt,
     onSave,
@@ -163,51 +114,36 @@ export const MilestoneTransitionDisplay = ({
     environment,
 }: IMilestoneTransitionDisplayProps) => {
     const projectId = useRequiredPathParam('projectId');
-    const initial = getTimeValueAndUnitFromMinutes(intervalMinutes);
-    const form = useMilestoneProgressionForm(
-        '', // sourceMilestoneId not needed for display
-        '', // targetMilestoneId not needed for display
-        {
-            timeValue: initial.value,
-            timeUnit: initial.unit,
-        },
+    const { form, validation } = useTransitionConditionForm({
+        initialCondition: transitionCondition,
         sourceMilestoneStartedAt,
         status,
-    );
+    });
 
-    const currentIntervalMinutes = form.getIntervalMinutes();
-    const hasChanged = currentIntervalMinutes !== intervalMinutes;
-
-    const progressionInfo = useMilestoneProgressionInfo(
-        currentIntervalMinutes,
-        sourceMilestoneStartedAt ?? null,
-        status,
-    );
+    const initial = getValueAndUnitFromCondition(transitionCondition);
+    const hasChanged = !isSameCondition(form.condition, transitionCondition);
 
     useEffect(() => {
-        const newInitial = getTimeValueAndUnitFromMinutes(intervalMinutes);
-        form.setTimeValue(newInitial.value);
-        form.setTimeUnit(newInitial.unit);
-    }, [intervalMinutes]);
+        form.setValue(initial.value);
+        form.setUnit(initial.unit);
+    }, [initial.value, initial.unit]);
 
     useEffect(() => {
         if (!hasChanged) {
-            form.clearErrors();
+            validation.clearError();
         }
-    }, [hasChanged, form.clearErrors]);
+    }, [hasChanged, validation.clearError]);
 
     const handleSave = async () => {
         if (!hasChanged) return;
 
-        if (!form.validate()) {
+        if (!validation.validate()) {
             return;
         }
 
         const payload: ChangeMilestoneProgressionSchema = {
             targetMilestone: targetMilestoneId,
-            transitionCondition: {
-                intervalMinutes: currentIntervalMinutes,
-            },
+            transitionCondition: form.condition,
         };
 
         const result = await onSave(payload);
@@ -218,10 +154,9 @@ export const MilestoneTransitionDisplay = ({
     };
 
     const handleReset = () => {
-        const initial = getTimeValueAndUnitFromMinutes(intervalMinutes);
-        form.setTimeValue(initial.value);
-        form.setTimeUnit(initial.unit);
-        form.clearErrors();
+        form.setValue(initial.value);
+        form.setUnit(initial.unit);
+        validation.clearError();
     };
 
     const handleKeyDown = (event: React.KeyboardEvent) => {
@@ -236,45 +171,48 @@ export const MilestoneTransitionDisplay = ({
 
     return (
         <StyledFormWrapper hasChanged={hasChanged} onKeyDown={handleKeyDown}>
-            <StyledDisplayContainer>
-                <StyledContentGroup>
-                    <StyledIcon status={status} />
-                    <StyledLabel status={status}>Proceed after</StyledLabel>
-                    <MilestoneProgressionTimeInput
-                        timeValue={form.timeValue}
-                        timeUnit={form.timeUnit}
-                        onTimeValueChange={form.handleTimeValueChange}
-                        onTimeUnitChange={form.handleTimeUnitChange}
+            <TransitionConditionRow
+                type={form.condition.type}
+                condition={
+                    <TransitionConditionInput
+                        value={form.value}
+                        unit={form.unit}
+                        onValueChange={form.handleValueChange}
+                        onUnitChange={form.handleUnitChange}
                     />
-                    <StyledLabel status={status}>
-                        from milestone start
-                    </StyledLabel>
-                </StyledContentGroup>
-                {!hasChanged && (
-                    <StyledButtonGroup hasChanged={false}>
-                        {badge}
-                        <PermissionIconButton
-                            permission={UPDATE_FEATURE_STRATEGY}
-                            projectId={projectId}
-                            environmentId={environment}
-                            onClick={onDelete}
-                            size='medium'
-                            aria-label={`Remove automation for ${milestoneName}`}
-                            tooltipProps={{
-                                title: `Remove automation for ${milestoneName}`,
-                            }}
-                            sx={{ padding: 0.5 }}
-                        >
-                            <DeleteOutlineIcon />
-                        </PermissionIconButton>
-                    </StyledButtonGroup>
-                )}
-            </StyledDisplayContainer>
-            {progressionInfo && (
-                <StyledInfoLine>{progressionInfo}</StyledInfoLine>
+                }
+                muted={status?.type === 'completed'}
+                endActions={
+                    !hasChanged && (
+                        <StyledButtonGroup hasChanged={false}>
+                            {badge}
+                            <PermissionIconButton
+                                permission={UPDATE_FEATURE_STRATEGY}
+                                projectId={projectId}
+                                environmentId={environment}
+                                onClick={onDelete}
+                                size='medium'
+                                aria-label={`Remove automation for ${milestoneName}`}
+                                tooltipProps={{
+                                    title: `Remove automation for ${milestoneName}`,
+                                }}
+                                sx={{ padding: 0.5 }}
+                            >
+                                <DeleteOutlineIcon />
+                            </PermissionIconButton>
+                        </StyledButtonGroup>
+                    )
+                }
+            />
+            {isTimeCondition(form.condition) && (
+                <TimeProgressionInfo
+                    intervalMinutes={form.condition.intervalMinutes}
+                    sourceMilestoneStartedAt={sourceMilestoneStartedAt}
+                    status={status}
+                />
             )}
-            {form.errors.time && (
-                <StyledErrorMessage>{form.errors.time}</StyledErrorMessage>
+            {validation.error && (
+                <StyledErrorMessage>{validation.error}</StyledErrorMessage>
             )}
             {hasChanged && (
                 <StyledButtonGroup hasChanged={true}>

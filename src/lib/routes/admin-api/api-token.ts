@@ -44,9 +44,12 @@ import {
 import type { FrontendApiService } from '../../features/frontend-api/frontend-api-service.js';
 import { OperationDeniedError } from '../../error/index.js';
 import type { CreateApiTokenSchema } from '../../internals.js';
-import type { IUserPermission } from '../../server-impl.js';
-import type { ApiTokenV2Service } from '../../features/apitokensv2/index.js';
+import type { IUserPermission, WithTransactional } from '../../server-impl.js';
 import { parseApiTokenV2Identifier } from '../../authentication/authorization-token.js';
+import type {
+    AdminApiTokenV2Service,
+    ReadOnlyApiTokenV2Service,
+} from '../../features/apitokensv2/api-token-v2-service.js';
 
 interface TokenParam {
     token: string;
@@ -123,7 +126,9 @@ const tokenTypeToDeletePermission: (tokenType: ApiTokenType) => string = (
 export class ApiTokenController extends Controller {
     private apiTokenService: ApiTokenService;
 
-    private apiTokenV2Service: ApiTokenV2Service;
+    private apiTokenV2Service: ReadOnlyApiTokenV2Service;
+
+    private transactionalApiTokenV2Service: WithTransactional<AdminApiTokenV2Service>;
 
     private accessService: AccessService;
 
@@ -143,6 +148,7 @@ export class ApiTokenController extends Controller {
             frontendApiService,
             openApiService,
             apiTokenV2Service,
+            transactionalApiTokenV2Service,
         }: Pick<
             IUnleashServices,
             | 'apiTokenService'
@@ -150,6 +156,7 @@ export class ApiTokenController extends Controller {
             | 'frontendApiService'
             | 'openApiService'
             | 'apiTokenV2Service'
+            | 'transactionalApiTokenV2Service'
         >,
     ) {
         super(config);
@@ -159,6 +166,7 @@ export class ApiTokenController extends Controller {
         this.openApiService = openApiService;
         this.flagResolver = config.flagResolver;
         this.apiTokenV2Service = apiTokenV2Service;
+        this.transactionalApiTokenV2Service = transactionalApiTokenV2Service;
         this.logger = config.getLogger('api-token-controller.js');
         this.route({
             method: 'get',
@@ -328,10 +336,14 @@ export class ApiTokenController extends Controller {
         if (hasPermission) {
             let token: IApiToken;
             if (this.flagResolver.isEnabled('secureTokenStorage')) {
-                const tokenV2 = await this.apiTokenV2Service.create(
-                    { userCreated: true, ...createToken },
-                    req.audit,
-                );
+                const tokenV2 =
+                    await this.transactionalApiTokenV2Service.transactional(
+                        (service) =>
+                            service.create(
+                                { userCreated: true, ...createToken },
+                                req.audit,
+                            ),
+                    );
                 const { selector: _selector, ...tokenWithSecret } = tokenV2;
                 token = {
                     ...tokenWithSecret,
@@ -390,15 +402,16 @@ export class ApiTokenController extends Controller {
         const v2Identifier = parseApiTokenV2Identifier(token);
         if (v2Identifier) {
             try {
-                await this.apiTokenV2Service.updateExpiry(
-                    v2Identifier,
-                    expiry,
-                    req.audit,
+                await this.transactionalApiTokenV2Service.transactional(
+                    (service) =>
+                        service.updateExpiry(v2Identifier, expiry, req.audit),
                 );
             } catch (_error) {
                 // Fall through to legacy storage during the migration period.
             }
         } else {
+            // only v2 is transactional, v1 is kept as is for simplicity, since it is not used in production anymore.
+            // people might still be able to update expiry but it will not be transactional, which is fine for the migration period.
             await this.apiTokenService.updateExpiry(token, expiry, req.audit);
         }
 
@@ -430,7 +443,10 @@ export class ApiTokenController extends Controller {
         const v2Identifier = parseApiTokenV2Identifier(token);
         if (v2Identifier) {
             try {
-                await this.apiTokenV2Service.delete(v2Identifier, req.audit);
+                await this.transactionalApiTokenV2Service.transactional(
+                    (service) => service.delete(v2Identifier, req.audit),
+                );
+                this.apiTokenV2Service.invalidateCache([v2Identifier.selector]);
             } catch (_error) {
                 // Fall through to legacy storage during the migration period.
             }

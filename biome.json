@@ -106,7 +106,6 @@
     },
     {
       "includes": [
-        "frontend/src/component/App.tsx",
         "frontend/src/component/InitialRedirect.tsx",
         "frontend/src/component/admin/banners/BannerModal/BannerModal.tsx",
         "frontend/src/component/admin/banners/BannersTable/BannersTable.tsx",
@@ -120,6 +119,7 @@
         "frontend/src/component/admin/users/UsersList/AccessRequestsTable/AccessRequestsTable.tsx",
         "frontend/src/component/admin/users/hooks/useAddUserForm.ts",
         "frontend/src/component/admin/users/UsersList/UsersList.tsx",
+        "frontend/src/component/admin/users/UsersList/UsersListDeprecated.tsx",
         "frontend/src/component/application/ConnectedInstances/ConnectedInstances.tsx",
         "frontend/src/component/changeRequest/ChangeRequest/Changes/Change/EditChange.tsx",
         "frontend/src/component/commandBar/RecentlyVisitedRecorder.tsx",
@@ -136,7 +136,8 @@
         "frontend/src/component/admin/serviceAccounts/ServiceAccountsTable/ServiceAccountModal/ServiceAccountTokens/ServiceAccountTokens.tsx",
         "frontend/src/component/admin/users/AccessOverview/AccessOverview.tsx",
         "frontend/src/component/admin/users/AutoCreateDomainUsersToggle.tsx",
-        "frontend/src/component/admin/users/InactiveUsersList/InactiveUsersList.tsx",
+        "frontend/src/component/admin/users/InactiveUsersList/InactiveUsersListDeprecated.tsx",
+        "frontend/src/component/admin/users/InactiveUsersList/InactiveUsersListBody.tsx",
         "frontend/src/component/application/ApplicationChart.tsx",
         "frontend/src/component/application/ApplicationOverview.tsx",
         "frontend/src/component/commandBar/CommandBar.tsx",

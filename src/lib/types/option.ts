@@ -106,6 +106,7 @@ export interface IServerOption {
     edgeUrl?: string;
     unleashUrl: string;
     logRocketAppId?: string;
+    hubspotPortalId?: string;
     serverMetrics: boolean;
     enableHeapSnapshotEnpoint: boolean;
     enableStoriesPage: boolean;
@@ -226,6 +227,7 @@ export interface IUIConfig {
     flags?: IFlags;
     unleashToken?: string;
     unleashContext?: IFlagContext;
+    billing?: 'subscription' | 'pay-as-you-go';
 }
 
 export interface ICspDomainOptions {
@@ -266,8 +268,11 @@ export interface IMetricsRateLimiting {
 export interface IRateLimiting {
     createUserMaxPerMinute: number;
     simpleLoginMaxPerMinute: number;
+    authenticationMaxPerMinute: number;
     passwordResetMaxPerMinute: number;
     callSignalEndpointMaxPerSecond: number;
+    tokenAuthenticationMaxPerMinute: number;
+    sdkApiMaxPerMinute: number;
 }
 
 export interface IUnleashConfig {

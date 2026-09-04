@@ -21,14 +21,15 @@ import RocketLaunchOutlinedIcon from '@mui/icons-material/RocketLaunchOutlined';
 import ExploreOutlinedIcon from '@mui/icons-material/ExploreOutlined';
 import LearningLabIcon from 'assets/icons/menu/learning-lab.svg?react';
 import { HelpMenuHint } from './HelpMenuHint.tsx';
+import { useHelpButtonHint } from './HelpButtonHintContext.tsx';
 import { FloatingOnboardingChecklistContext } from 'component/onboarding/floatingChecklist/FloatingOnboardingChecklistContext.tsx';
+import { useOnboardingChecklistVisibility } from 'component/onboarding/floatingChecklist/useOnboardingChecklistVisibility.ts';
 import { OnboardingProgressBadge } from 'component/onboarding/floatingChecklist/OnboardingProgressBadge.tsx';
 import { Link } from 'react-router';
 import { useFeedback } from 'component/feedbackNew/useFeedback';
 import { useEventTracker } from 'hooks/useEventTracker';
 import { useUiFlag } from 'hooks/useUiFlag';
 import { useVariant } from 'hooks/useVariant';
-import useUiConfig from 'hooks/api/getters/useUiConfig/useUiConfig';
 import { useIntro } from 'component/onboarding/intro/IntroProvider.tsx';
 
 const StyledIconButton = styled(IconButton)<{ open?: boolean }>(
@@ -116,6 +117,13 @@ const StyledLearningLabContent = styled(Box)(({ theme }) => ({
     gap: theme.spacing(0.5),
 }));
 
+const IntroHintIcon = styled(ExploreOutlinedIcon)(({ theme }) => ({
+    color: theme.palette.neutral.main,
+    width: 18,
+    height: 18,
+    verticalAlign: 'bottom',
+}));
+
 const StyledMenuItem = styled(MenuItem)<AnchorMenuItemProps>(({ theme }) => ({
     display: 'flex',
     alignItems: 'center',
@@ -158,11 +166,8 @@ export const HelpResources = () => {
     const buttonRef = useRef<HTMLButtonElement | null>(null);
     const open = Boolean(anchorEl);
     const { trackEvent } = useEventTracker();
-    const { isEnterprise } = useUiConfig();
-    const whatsNewEnabled = useUiFlag('whatsNewPage');
-    const showWhatsNew = isEnterprise() && whatsNewEnabled;
     const { open: openIntro } = useIntro();
-    const introEnabled = useUiFlag('quickTourDemo');
+    const introEnabled = useUiFlag('onboardingIntroTour');
     const learningLabFlag = useUiFlag('learningLab');
     const learningLabVariant = useVariant<ILearningLabVariant>(
         learningLabFlag || undefined,
@@ -182,12 +187,21 @@ export const HelpResources = () => {
     const floatingOnboardingChecklist = useContext(
         FloatingOnboardingChecklistContext,
     );
+    const checklistVisibility = useOnboardingChecklistVisibility();
+    const showGetStarted = Boolean(
+        floatingOnboardingChecklist && checklistVisibility === 'visible',
+    );
 
-    const hintOpen = Boolean(floatingOnboardingChecklist?.helpHintVisible);
+    const {
+        activeHint,
+        showHint: showHelpButtonHint,
+        dismissHint: dismissHelpButtonHint,
+    } = useHelpButtonHint();
+    const hintOpen = activeHint !== null;
 
     const handleOpen = (e: React.MouseEvent<HTMLElement>) => {
         setAnchorEl(e.currentTarget);
-        if (hintOpen) floatingOnboardingChecklist?.dismissHelpHint();
+        if (hintOpen) dismissHelpButtonHint();
         trackEvent(EVENT_NAME, {
             props: {
                 eventType: 'opened',
@@ -242,11 +256,19 @@ export const HelpResources = () => {
                 </StyledIconButton>
             </Tooltip>
             <HelpMenuHint
-                open={hintOpen}
+                open={activeHint === 'get-started'}
                 anchorEl={buttonRef.current}
-                onClose={() => floatingOnboardingChecklist?.dismissHelpHint()}
+                onClose={dismissHelpButtonHint}
             >
                 You can reopen the Get started checklist from here anytime
+            </HelpMenuHint>
+            <HelpMenuHint
+                open={activeHint === 'intro-closed'}
+                anchorEl={buttonRef.current}
+                onClose={dismissHelpButtonHint}
+            >
+                You can restart the <IntroHintIcon /> Unleash Intro from here
+                anytime
             </HelpMenuHint>
             <StyledMenu
                 anchorEl={anchorEl}
@@ -279,7 +301,7 @@ export const HelpResources = () => {
                         </StyledVisitLink>
                     </StyledLearningLabContent>
                 </StyledFeaturedMenuItem>
-                {floatingOnboardingChecklist && (
+                {showGetStarted && (
                     <StyledMenuItem onClick={handleGetStarted}>
                         <RocketLaunchOutlinedIcon fontSize='small' />
                         Get started
@@ -287,21 +309,22 @@ export const HelpResources = () => {
                         <OnboardingProgressBadge />
                     </StyledMenuItem>
                 )}
-                {showWhatsNew && (
-                    <StyledMenuItem
-                        component={Link}
-                        to='/whats-new'
-                        onClick={() => handleOptionClick('whats-new')}
-                    >
-                        <NewReleasesOutlinedIcon fontSize='small' />
-                        What's new
-                    </StyledMenuItem>
-                )}
+                <StyledMenuItem
+                    component={Link}
+                    to='/whats-new'
+                    onClick={() => handleOptionClick('whats-new')}
+                >
+                    <NewReleasesOutlinedIcon fontSize='small' />
+                    What's new
+                </StyledMenuItem>
                 {introEnabled && (
                     <StyledMenuItem
                         onClick={() => {
                             handleOptionClick('quick-tour');
-                            openIntro();
+                            openIntro({
+                                onExited: () =>
+                                    showHelpButtonHint('intro-closed'),
+                            });
                         }}
                         data-testid='QUICK_TOUR_BUTTON'
                     >

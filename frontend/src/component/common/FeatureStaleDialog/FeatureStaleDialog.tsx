@@ -5,6 +5,8 @@ import { Dialogue } from 'component/common/Dialogue/Dialogue';
 import type React from 'react';
 import useToast from 'hooks/useToast';
 import { formatUnknownError } from 'utils/formatUnknownError';
+import type { Tracking } from 'utils/trackingEvents';
+import { useTracking } from 'hooks/useTracking';
 
 interface IFeatureStaleDialogProps {
     isStale: boolean;
@@ -13,6 +15,7 @@ interface IFeatureStaleDialogProps {
     featureId: string;
     onClose: () => void;
     onSuccess?: () => void;
+    tracking?: Tracking;
 }
 
 export const FeatureStaleDialog = ({
@@ -22,9 +25,11 @@ export const FeatureStaleDialog = ({
     featureId,
     onClose,
     onSuccess,
+    tracking,
 }: IFeatureStaleDialogProps) => {
     const { setToastData, setToastApiError } = useToast();
-    const { patchFeatureToggle } = useFeatureApi();
+    const { patchFeatureToggle, loading } = useFeatureApi();
+    const { trackMutation } = useTracking(tracking);
 
     const flagToStaleContent = (
         <Typography>Setting a flag to stale marks it for cleanup</Typography>
@@ -43,23 +48,19 @@ export const FeatureStaleDialog = ({
 
         try {
             const patch = [{ op: 'replace', path: '/stale', value: !isStale }];
-            await patchFeatureToggle(projectId, featureId, patch);
+            await trackMutation(() =>
+                patchFeatureToggle(projectId, featureId, patch),
+            );
+            setToastData({
+                type: 'success',
+                text: isStale
+                    ? 'The flag is no longer marked as stale'
+                    : 'The flag has been marked as stale',
+            });
             onSuccess?.();
             onClose();
         } catch (err: unknown) {
             setToastApiError(formatUnknownError(err));
-        }
-
-        if (isStale) {
-            setToastData({
-                type: 'success',
-                text: 'The flag is no longer marked as stale',
-            });
-        } else {
-            setToastData({
-                type: 'success',
-                text: 'The flag has been marked as stale',
-            });
         }
     };
 
@@ -71,6 +72,8 @@ export const FeatureStaleDialog = ({
             title={`Set feature state to ${flagActionText}`}
             onClick={onSubmit}
             onClose={onClose}
+            disabledPrimaryButton={loading}
+            tracking={tracking}
         >
             <ConditionallyRender
                 condition={isStale}

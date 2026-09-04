@@ -22,6 +22,7 @@ export interface IUiConfig {
     unleashUrl?: string;
     edgeUrl?: string;
     logRocketAppId?: string;
+    hubspotPortalId?: string;
     version: string;
     versionInfo?: IVersionInfo;
     links: ILinks[];
@@ -58,8 +59,8 @@ export type UiFlags = {
     notifications?: boolean;
     personalAccessTokensKillSwitch?: boolean;
     demo?: boolean;
-    quickTourDemo?: boolean;
-    introAdvancedSteps?: boolean;
+    onboardingIntroTour?: boolean;
+    onboardingIntroTourAdvancedTopics?: boolean;
     interactiveDemoKillSwitch?: boolean;
     advancedPlayground?: boolean;
     strategyVariant?: boolean;
@@ -68,6 +69,7 @@ export type UiFlags = {
     newStrategyConfiguration?: boolean;
     signals?: boolean;
     automatedActions?: boolean;
+    releaseTemplatesAutomations?: boolean;
     celebrateUnleash?: boolean;
     enableLicense?: boolean;
     feedbackComments?: Variant;
@@ -82,7 +84,6 @@ export type UiFlags = {
     flagCreator?: boolean;
     productivityReportEmail?: boolean;
     showUserDeviceCount?: boolean;
-    sessionInspector?: boolean;
     consumptionModel?: boolean;
     consumptionModelUI?: boolean;
     disableImpactMetrics?: boolean;
@@ -90,25 +91,28 @@ export type UiFlags = {
     plausibleMetrics?: boolean;
     oidcPkceSupport?: boolean;
     extendedUsageMetrics?: boolean;
-    newInUnleash?: boolean | Variant;
-    whatsNewPage?: boolean;
-    flagListCreatedByFilter?: boolean;
     regexConstraintOperator?: boolean;
     semverGteConstraintOperators?: boolean;
     signupDialog?: boolean;
     enterpriseEdgeTokensList?: boolean;
     impactMetricsFlagPage?: boolean;
+    uxTweakSurveys?: boolean;
     multiMetricChart?: boolean;
     logRocketEnabled?: boolean;
+    hubspotChatEnabled?: boolean;
     newModalDesign?: boolean;
     newProfileDropdown?: boolean;
     learningLab?: Variant;
     floatingOnboardingChecklist?: boolean;
-    accessRequestsNotifications?: boolean;
     flightRecorderFrontend?: Variant;
-    accessRequestsMenuIndicator?: boolean;
     topLabelInputs?: boolean;
     searchDocsWidget?: boolean;
+    usersTabsUI?: boolean;
+    exposureBasedAutomation?: boolean;
+    semverBuildMetadata?: boolean;
+    slackIntegrationProjectLevel?: boolean;
+    flagStatusTooltips?: boolean;
+    simplerStrategySetup?: boolean;
 };
 
 export interface IVersionInfo {

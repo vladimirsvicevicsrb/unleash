@@ -20,6 +20,7 @@ import { releaseTemplatesApiPath } from 'hooks/api/getters/useReleasePlanTemplat
 import { useReleasePlanTemplates } from 'hooks/api/getters/useReleasePlanTemplates/useReleasePlanTemplates';
 import { formatReleaseTemplateListPath } from 'component/releases/releaseTemplatePaths';
 import { releaseTemplateScopeProps } from 'component/releases/releaseTemplateScopeProps';
+import { automationCounts } from 'component/releases/automationCounts';
 import { formatValidationErrors } from './formatValidationErrors.ts';
 import { useOptionalPathParam } from 'hooks/useOptionalPathParam';
 
@@ -55,6 +56,7 @@ export const EditReleasePlanTemplate = ({ modal }: { modal?: boolean }) => {
         errors,
         setErrors,
         clearErrors,
+        clearError,
         milestones,
         setMilestones,
         validate,
@@ -85,7 +87,8 @@ export const EditReleasePlanTemplate = ({ modal }: { modal?: boolean }) => {
             return;
         }
         try {
-            await updateReleasePlanTemplate(templateId, getTemplatePayload());
+            const payload = getTemplatePayload();
+            await updateReleasePlanTemplate(templateId, payload);
             await refetch();
             setToastData({
                 type: 'success',
@@ -97,6 +100,7 @@ export const EditReleasePlanTemplate = ({ modal }: { modal?: boolean }) => {
                     eventType: 'edit-template',
                     template: template.name,
                     ...scopeProps,
+                    ...automationCounts(payload.milestones),
                 },
             });
 
@@ -142,6 +146,7 @@ export const EditReleasePlanTemplate = ({ modal }: { modal?: boolean }) => {
             setMilestones={setMilestones}
             errors={errors}
             clearErrors={clearErrors}
+            clearError={clearError}
             formTitle={`Edit release template`}
             formatApiCode={formatApiCode}
             handleSubmit={handleSubmit}

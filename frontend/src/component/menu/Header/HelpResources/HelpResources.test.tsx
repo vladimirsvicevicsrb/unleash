@@ -1,23 +1,56 @@
+import { type FC, useEffect } from 'react';
 import { expect, test, vi } from 'vitest';
 import { render } from 'utils/testRenderer';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HelpResources } from './HelpResources';
+import {
+    HelpButtonHintProvider,
+    type HelpButtonHintKind,
+    useHelpButtonHint,
+} from './HelpButtonHintContext.tsx';
 import { testServerRoute, testServerSetup } from 'utils/testServer';
 import { FloatingOnboardingChecklistContext } from 'component/onboarding/floatingChecklist/FloatingOnboardingChecklistContext.tsx';
 import type { FloatingOnboardingChecklistContextValue } from 'component/onboarding/floatingChecklist/useChecklistContextValue.ts';
+import {
+    ONBOARDING_CHECKLIST_ELIGIBILITY_DECIDED_SPLASH_ID,
+    ONBOARDING_CHECKLIST_ELIGIBLE_SPLASH_ID,
+} from 'component/onboarding/floatingChecklist/useOnboardingChecklistVisibility.ts';
+import { ADMIN } from 'component/providers/AccessProvider/permissions.ts';
 
 const HINT_TEXT = 'You can reopen the Get started checklist from here anytime';
+const INTRO_HINT_TEXT = 'You can restart the Unleash Intro from here anytime';
+
+const baseChecklistContext = (
+    overrides: Partial<FloatingOnboardingChecklistContextValue> = {},
+): FloatingOnboardingChecklistContextValue => ({
+    state: { minimized: false, dismissed: false, completed: {} },
+    update: vi.fn(),
+    markCompleted: vi.fn(),
+    open: vi.fn(),
+    openRequestCounter: 0,
+    dismissed: false,
+    projectId: 'default',
+    visibleSteps: ['flag', 'sdk', 'on'],
+    done: { tour: false, flag: false, sdk: false, on: false },
+    completedCount: 0,
+    totalSteps: 3,
+    environments: [],
+    refetchOverview: vi.fn(),
+    ...overrides,
+});
 
 const renderWithChecklistContext = (
-    value: Partial<FloatingOnboardingChecklistContextValue>,
+    overrides: Partial<FloatingOnboardingChecklistContextValue> = {},
+    options?: Parameters<typeof render>[1],
 ) =>
     render(
         <FloatingOnboardingChecklistContext.Provider
-            value={value as FloatingOnboardingChecklistContextValue}
+            value={baseChecklistContext(overrides)}
         >
             <HelpResources />
         </FloatingOnboardingChecklistContext.Provider>,
+        options,
     );
 
 const server = testServerSetup();
@@ -34,6 +67,11 @@ vi.mock('component/feedbackNew/useFeedback', async (importOriginal) => {
 const trackEvent = vi.fn();
 vi.mock('hooks/useEventTracker', () => ({
     useEventTracker: () => ({ trackEvent }),
+}));
+
+const openIntroMock = vi.fn();
+vi.mock('component/onboarding/intro/IntroProvider.tsx', () => ({
+    useIntro: () => ({ open: openIntroMock }),
 }));
 
 const withLearningLab = () =>
@@ -61,7 +99,7 @@ test('opens help menu with all items when clicking the button', async () => {
 
 test('quick tour item is shown when the flag is on', async () => {
     testServerRoute(server, '/api/admin/ui-config', {
-        flags: { quickTourDemo: true },
+        flags: { onboardingIntroTour: true },
     });
     render(<HelpResources />);
 
@@ -130,11 +168,7 @@ test('give feedback calls openFeedback with the correct title and labels', async
     });
 });
 
-test("What's new item shows when enterprise and flag are enabled", async () => {
-    testServerRoute(server, '/api/admin/ui-config', {
-        flags: { whatsNewPage: true },
-        versionInfo: { current: { enterprise: '1.0.0' } },
-    });
+test("What's new item links to /whats-new", async () => {
     render(<HelpResources />);
 
     await userEvent.click(
@@ -144,37 +178,6 @@ test("What's new item shows when enterprise and flag are enabled", async () => {
     expect(
         screen.getByRole('menuitem', { name: /What's new/ }),
     ).toHaveAttribute('href', '/whats-new');
-});
-
-test("What's new item is hidden on enterprise without the flag", async () => {
-    testServerRoute(server, '/api/admin/ui-config', {
-        flags: { whatsNewPage: false },
-        versionInfo: { current: { enterprise: '1.0.0' } },
-    });
-    render(<HelpResources />);
-
-    await userEvent.click(
-        await screen.findByRole('button', { name: 'Help and resources' }),
-    );
-
-    expect(
-        screen.queryByRole('menuitem', { name: /What's new/ }),
-    ).not.toBeInTheDocument();
-});
-
-test("What's new item is hidden on non-enterprise even with the flag", async () => {
-    testServerRoute(server, '/api/admin/ui-config', {
-        flags: { whatsNewPage: true },
-    });
-    render(<HelpResources />);
-
-    await userEvent.click(
-        await screen.findByRole('button', { name: 'Help and resources' }),
-    );
-
-    expect(
-        screen.queryByRole('menuitem', { name: /What's new/ }),
-    ).not.toBeInTheDocument();
 });
 
 test('tracks menu open and item click', async () => {
@@ -196,23 +199,136 @@ test('tracks menu open and item click', async () => {
     });
 });
 
-test('shows the help hint pointing at the button when the context flags it visible', async () => {
-    withLearningLab();
+const mockCheapGatePassingWithSplash = (splash: Record<string, boolean>) => {
+    testServerRoute(server, '/api/admin/ui-config', {
+        flags: { floatingOnboardingChecklist: true },
+    });
+    testServerRoute(server, '/api/admin/user', {
+        user: { id: 1 },
+        permissions: [],
+        feedback: [],
+        splash,
+    });
+};
 
-    renderWithChecklistContext({ helpHintVisible: true });
+test('hides Get started when the user is already known to be not eligible', async () => {
+    mockCheapGatePassingWithSplash({
+        [ONBOARDING_CHECKLIST_ELIGIBILITY_DECIDED_SPLASH_ID]: true,
+    });
 
-    expect(await screen.findByText(HINT_TEXT)).toBeInTheDocument();
-});
-
-test('dismisses the help hint when the user opens the menu', async () => {
-    withLearningLab();
-    const dismissHelpHint = vi.fn();
-
-    renderWithChecklistContext({ helpHintVisible: true, dismissHelpHint });
+    renderWithChecklistContext({}, { permissions: [{ permission: ADMIN }] });
 
     await userEvent.click(
         await screen.findByRole('button', { name: 'Help and resources' }),
     );
 
-    expect(dismissHelpHint).toHaveBeenCalled();
+    expect(
+        screen.queryByRole('menuitem', { name: /Get started/ }),
+    ).not.toBeInTheDocument();
+});
+
+test('shows Get started with progress badge when the user is already known to be eligible', async () => {
+    mockCheapGatePassingWithSplash({
+        [ONBOARDING_CHECKLIST_ELIGIBILITY_DECIDED_SPLASH_ID]: true,
+        [ONBOARDING_CHECKLIST_ELIGIBLE_SPLASH_ID]: true,
+    });
+
+    renderWithChecklistContext(
+        { completedCount: 1, totalSteps: 3 },
+        { permissions: [{ permission: ADMIN }] },
+    );
+
+    await userEvent.click(
+        await screen.findByRole('button', { name: 'Help and resources' }),
+    );
+
+    const item = await screen.findByRole('menuitem', { name: /Get started/ });
+    expect(item).toBeInTheDocument();
+    expect(item).toHaveTextContent('1/3');
+});
+
+test("hides Get started until the user's eligibility is known", async () => {
+    mockCheapGatePassingWithSplash({});
+
+    renderWithChecklistContext({}, { permissions: [{ permission: ADMIN }] });
+
+    await userEvent.click(
+        await screen.findByRole('button', { name: 'Help and resources' }),
+    );
+
+    expect(
+        screen.queryByRole('menuitem', { name: /Get started/ }),
+    ).not.toBeInTheDocument();
+});
+
+const HintSeeder: FC<{ kind: HelpButtonHintKind }> = ({ kind }) => {
+    const { showHint } = useHelpButtonHint();
+    useEffect(() => {
+        showHint(kind);
+    }, [kind, showHint]);
+    return null;
+};
+
+const renderWithHint = (kind: HelpButtonHintKind) => {
+    window.localStorage.clear();
+    render(
+        <HelpButtonHintProvider>
+            <HintSeeder kind={kind} />
+            <HelpResources />
+        </HelpButtonHintProvider>,
+    );
+};
+
+test('renders only the get-started copy while the get-started hint is active', async () => {
+    withLearningLab();
+
+    renderWithHint('get-started');
+
+    expect(await screen.findByText(HINT_TEXT)).toBeInTheDocument();
+    expect(screen.queryByText(INTRO_HINT_TEXT)).not.toBeInTheDocument();
+});
+
+test('renders only the intro-closed copy while the intro-closed hint is active', async () => {
+    withLearningLab();
+
+    renderWithHint('intro-closed');
+
+    expect(await screen.findByText(INTRO_HINT_TEXT)).toBeInTheDocument();
+    expect(screen.queryByText(HINT_TEXT)).not.toBeInTheDocument();
+});
+
+test('dismisses the help hint when the user opens the menu', async () => {
+    withLearningLab();
+
+    renderWithHint('get-started');
+    expect(await screen.findByText(HINT_TEXT)).toBeInTheDocument();
+
+    await userEvent.click(
+        await screen.findByRole('button', { name: 'Help and resources' }),
+    );
+
+    await waitFor(() =>
+        expect(screen.queryByText(HINT_TEXT)).not.toBeInTheDocument(),
+    );
+});
+
+test('surfaces the intro-closed hint after the intro closes from the menu', async () => {
+    testServerRoute(server, '/api/admin/ui-config', {
+        flags: { onboardingIntroTour: true },
+    });
+    window.localStorage.clear();
+    openIntroMock.mockImplementationOnce((options) => options?.onExited?.());
+
+    render(
+        <HelpButtonHintProvider>
+            <HelpResources />
+        </HelpButtonHintProvider>,
+    );
+
+    await userEvent.click(
+        await screen.findByRole('button', { name: 'Help and resources' }),
+    );
+    await userEvent.click(screen.getByText('Unleash Intro'));
+
+    expect(await screen.findByText(INTRO_HINT_TEXT)).toBeInTheDocument();
 });

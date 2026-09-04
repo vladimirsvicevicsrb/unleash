@@ -30,8 +30,8 @@ export type IFlagKey =
     | 'feedbackPosting'
     | 'extendedUsageMetrics'
     | 'feedbackComments'
-    | 'useMemoizedActiveTokens'
-    | 'queryMissingTokens'
+    | 'usePromiseTokenCache'
+    | 'queryMissingTokens' // TODO: nowhere used - to be removed
     | 'disableUpdateMaxRevisionId'
     | 'disablePublishUnannouncedEvents'
     | 'outdatedSdksBanner'
@@ -47,7 +47,6 @@ export type IFlagKey =
     | 'productivityReportUnsubscribers'
     | 'tokenExpiryNotifications'
     | 'showUserDeviceCount'
-    | 'sessionInspector'
     | 'memorizeStats'
     | 'deltaApi'
     | 'uniqueSdkTracking'
@@ -57,8 +56,6 @@ export type IFlagKey =
     | 'etagByEnv'
     | 'optimizeLifecycle'
     | 'plausibleMetrics'
-    | 'newInUnleash'
-    | 'whatsNewPage'
     | 'flightRecorderSdk'
     | 'flightRecorderAdminEvents'
     | 'flightRecorderFrontend'
@@ -67,19 +64,25 @@ export type IFlagKey =
     | 'userTokenWithClientApiLoggingKillSwitch'
     | 'multiMetricChart'
     | 'logRocketEnabled'
+    | 'hubspotChatEnabled'
     | 'newModalDesign'
     | 'allowDeprecatedApiTokenMiddleware'
     | 'newProfileDropdown'
     | 'serviceNowIntegration'
     | 'learningLab'
     | 'floatingOnboardingChecklist'
-    | 'quickTourDemo'
-    | 'introAdvancedSteps'
+    | 'onboardingIntroTour'
+    | 'onboardingIntroTourAdvancedTopics'
     | 'topLabelInputs'
-    | 'flagListCreatedByFilter'
     | 'secureTokenStorage'
+    | 'secureAccountTokenStorage'
     | 'recordSdkFlavorMetrics'
     | 'searchDocsWidget'
+    | 'usersTabsUI'
+    | 'semverBuildMetadata'
+    | 'slackIntegrationProjectLevel'
+    | 'flagStatusTooltips'
+    | 'simplerStrategySetup'
     | keyof IFlagKeyOverrides;
 
 export type IFlags = Partial<{ [key in IFlagKey]: boolean | Variant }>;
@@ -117,12 +120,12 @@ const flags: IFlags = {
     ),
     migrationLock: parseEnvVarBoolean(process.env.MIGRATION_LOCK, true),
     demo: parseEnvVarBoolean(process.env.UNLEASH_DEMO, false),
-    quickTourDemo: parseEnvVarBoolean(
-        process.env.UNLEASH_QUICK_TOUR_DEMO,
+    onboardingIntroTour: parseEnvVarBoolean(
+        process.env.UNLEASH_ONBOARDING_INTRO_TOUR,
         false,
     ),
-    introAdvancedSteps: parseEnvVarBoolean(
-        process.env.UNLEASH_INTRO_ADVANCED_STEPS,
+    onboardingIntroTourAdvancedTopics: parseEnvVarBoolean(
+        process.env.UNLEASH_ONBOARDING_INTRO_TOUR_ADVANCED_TOPICS,
         false,
     ),
     interactiveDemoKillSwitch: parseEnvVarBoolean(
@@ -170,8 +173,8 @@ const flags: IFlags = {
                 '',
         },
     },
-    useMemoizedActiveTokens: parseEnvVarBoolean(
-        process.env.UNLEASH_EXPERIMENTAL_MEMOIZED_ACTIVE_TOKENS,
+    usePromiseTokenCache: parseEnvVarBoolean(
+        process.env.UNLEASH_EXPERIMENTAL_USE_PROMISE_TOKEN_CACHE,
         false,
     ),
     disableUpdateMaxRevisionId: parseEnvVarBoolean(
@@ -182,6 +185,7 @@ const flags: IFlags = {
         process.env.UNLEASH_EXPERIMENTAL_DISABLE_SCHEDULED_CACHES,
         false,
     ),
+    // TODO: nowhere used - to be removed
     queryMissingTokens: parseEnvVarBoolean(
         process.env.UNLEASH_EXPERIMENTAL_QUERY_MISSING_TOKENS,
         false,
@@ -235,10 +239,6 @@ const flags: IFlags = {
         process.env.UNLEASH_EXPERIMENTAL_SHOW_USER_DEVICE_COUNT,
         false,
     ),
-    sessionInspector: parseEnvVarBoolean(
-        process.env.UNLEASH_EXPERIMENTAL_SESSION_INSPECTOR,
-        false,
-    ),
     deltaApi: parseEnvVarBoolean(
         process.env.UNLEASH_EXPERIMENTAL_DELTA_API,
         false,
@@ -255,24 +255,12 @@ const flags: IFlags = {
         process.env.UNLEASH_EXPERIMENTAL_IMPACT_VIEWS,
         false,
     ),
-    whatsNewPage: parseEnvVarBoolean(
-        process.env.UNLEASH_EXPERIMENTAL_WHATS_NEW_PAGE,
-        false,
-    ),
-    flagListCreatedByFilter: parseEnvVarBoolean(
-        process.env.UNLEASH_EXPERIMENTAL_FLAG_LIST_CREATED_BY_FILTER,
-        false,
-    ),
     disableImpactMetrics: parseEnvVarBoolean(
         process.env.UNLEASH_EXPERIMENTAL_DISABLE_IMPACT_METRICS,
         false,
     ),
     plausibleMetrics: parseEnvVarBoolean(
         process.env.UNLEASH_EXPERIMENTAL_PLAUSIBLE_METRICS,
-        false,
-    ),
-    newInUnleash: parseEnvVarBooleanOrStringVariant(
-        process.env.UNLEASH_EXPERIMENTAL_NEW_IN_UNLEASH,
         false,
     ),
     flightRecorderSdk: parseEnvVarBoolean(
@@ -317,6 +305,10 @@ const flags: IFlags = {
         process.env.UNLEASH_EXPERIMENTAL_LOGROCKET_ENABLED,
         false,
     ),
+    hubspotChatEnabled: parseEnvVarBoolean(
+        process.env.UNLEASH_EXPERIMENTAL_HUBSPOT_CHAT_ENABLED,
+        false,
+    ),
     newModalDesign: parseEnvVarBoolean(
         process.env.UNLEASH_EXPERIMENTAL_NEW_MODAL_DESIGN,
         false,
@@ -356,8 +348,32 @@ const flags: IFlags = {
         process.env.UNLEASH_EXPERIMENTAL_SECURE_TOKEN,
         false,
     ),
+    secureAccountTokenStorage: parseEnvVarBoolean(
+        process.env.UNLEASH_EXPERIMENTAL_SECURE_ACCOUNT_TOKEN,
+        false,
+    ),
     searchDocsWidget: parseEnvVarBoolean(
         process.env.UNLEASH_EXPERIMENTAL_SEARCH_DOCS_WIDGET,
+        false,
+    ),
+    usersTabsUI: parseEnvVarBoolean(
+        process.env.UNLEASH_EXPERIMENTAL_USERS_TABS_UI,
+        false,
+    ),
+    semverBuildMetadata: parseEnvVarBoolean(
+        process.env.UNLEASH_EXPERIMENTAL_SEMVER_BUILD_METADATA,
+        false,
+    ),
+    slackIntegrationProjectLevel: parseEnvVarBoolean(
+        process.env.UNLEASH_EXPERIMENTAL_SLACK_INTEGRATION_PROJECT_LEVEL,
+        false,
+    ),
+    simplerStrategySetup: parseEnvVarBoolean(
+        process.env.UNLEASH_EXPERIMENTAL_SIMPLER_STRATEGY_SETUP,
+        false,
+    ),
+    flagStatusTooltips: parseEnvVarBoolean(
+        process.env.UNLEASH_EXPERIMENTAL_FLAG_STATUS_TOOLTIPS,
         false,
     ),
 };
