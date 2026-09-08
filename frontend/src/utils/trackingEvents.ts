@@ -1,3 +1,9 @@
+import type {
+    EventProps,
+    TrackEventOptions,
+} from 'contexts/EventTrackerContext';
+import { requestFailureProps } from 'utils/requestFailureProps';
+
 /**
  * Allowed event names for analytics trackers.
  * New events must be added here and registered in Plausible as Custom event goals.
@@ -61,8 +67,6 @@ export type CustomEvents =
     | 'sdk-banner'
     | 'feature-lifecycle'
     | 'command-bar'
-    | 'new-in-unleash-click'
-    | 'new-in-unleash-dismiss'
     | 'search-opened'
     | 'events-exported'
     | 'event-timeline'
@@ -89,10 +93,93 @@ export type CustomEvents =
     | 'remote-mcp'
     | 'external-impact-metrics'
     | 'help-resources'
+    | 'onboarding-checklist'
     | 'access-requests-notification'
     | 'whats-new-page'
     | 'search-docs'
-    | 'flag-actions';
+    | 'flag-actions'
+    | 'flag-tags'
+    | 'flag-strategy'
+    | 'flag-environment-toggled'
+    | 'project-status'
+    | 'flag-creation'
+    | 'segments'
+    | 'context-fields'
+    | 'docs-opened'
+    | 'api-command-copied'
+    | 'project-settings'
+    | 'project-access'
+    | 'project-environments'
+    | 'project-actions'
+    | 'flags-list'
+    | 'dialog-dismissed';
+
+// Every action emits as a row of the same event, so funnels need no join.
+export type Tracking = {
+    event: CustomEvents;
+    type?: string;
+    props?: EventProps;
+};
+
+export type TrackingAction =
+    | 'opened'
+    | 'submitted'
+    | 'succeeded'
+    | 'failed'
+    | 'dismissed'
+    | 'copied';
+
+// eventType and action are stamped from the declaration; passing them would fight it.
+export type TrackingProps = EventProps & {
+    eventType?: never;
+    action?: never;
+};
+
+type TrackEvent = (event: CustomEvents, options?: TrackEventOptions) => void;
+
+export const emitTrackingAction = (
+    trackEvent: TrackEvent,
+    tracking: Tracking,
+    action: TrackingAction,
+    props?: TrackingProps,
+) => {
+    trackEvent(tracking.event, {
+        props: {
+            ...tracking.props,
+            ...props,
+            ...(tracking.type ? { eventType: tracking.type } : {}),
+            action,
+        },
+    });
+};
+
+// Rethrows: the caller keeps owning toasts and error handling. Call this directly only
+// when the eventType is chosen inside the handler; useTracking binds it at render.
+export const runTrackedMutation = async <T>(
+    trackEvent: TrackEvent,
+    tracking: Tracking,
+    fn: () => Promise<T>,
+    props?: TrackingProps,
+): Promise<T> => {
+    emitTrackingAction(trackEvent, tracking, 'submitted', props);
+    try {
+        const result = await fn();
+        emitTrackingAction(trackEvent, tracking, 'succeeded', props);
+        return result;
+    } catch (error: unknown) {
+        emitTrackingAction(trackEvent, tracking, 'failed', {
+            ...props,
+            ...requestFailureProps(error),
+        });
+        throw error;
+    }
+};
+
+export type DialogDismissMethod =
+    | 'cancel-button'
+    | 'backdrop'
+    | 'escape'
+    | 'close-icon';
 
 // Flight recorder uses these reserved names internally; they are not available for custom events.
 export const RESERVED_EVENT_NAMES = {

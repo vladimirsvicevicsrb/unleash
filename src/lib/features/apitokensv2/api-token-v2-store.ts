@@ -1,16 +1,20 @@
-import type { Db } from '../../db/db.js';
+import { subMinutes } from 'date-fns';
+
 import type {
     ApiTokenV2,
+    ApiTokenV2WithVerifier,
     CreateApiTokenV2,
     IApiTokenV2Store,
 } from './api-token-v2-types.js';
-import { inTransaction } from '../../db/transaction.js';
 import { ALL_PROJECTS } from '../../util/index.js';
 import { ALL, isAllProjects } from '../../types/models/api-token.js';
-import { subMinutes } from 'date-fns';
+import type { Db } from '../../db/db.js';
+import { inTransaction } from '../../db/transaction.js';
 
 const TABLE = 'api_tokens_v2';
 const API_V2_LINK_TABLE = 'api_tokens_v2_project';
+
+const CLEANUP_BATCH_SIZE = 1000;
 
 const toToken = (row: any): Omit<ApiTokenV2, 'projects'> => ({
     selector: row.selector,
@@ -23,7 +27,7 @@ const toToken = (row: any): Omit<ApiTokenV2, 'projects'> => ({
     secure: true,
 });
 
-const toTokens = (rows: any[]): (ApiTokenV2 & { verifier: string })[] => {
+const toTokens = (rows: any[]): ApiTokenV2WithVerifier[] => {
     const tokens = rows.reduce(tokenRowReducer, {});
     return Object.values(tokens);
 };
@@ -49,9 +53,10 @@ const tokenRowReducer = (acc, tokenRow) => {
 export class ApiTokenV2Store implements IApiTokenV2Store {
     constructor(private readonly db: Db) {}
 
-    count(): Promise<number> {
+    countUserCreatedTokens(): Promise<number> {
         return this.db(TABLE)
             .count('*')
+            .where('user_created', true)
             .then((res) => Number(res[0].count));
     }
 
@@ -111,13 +116,22 @@ export class ApiTokenV2Store implements IApiTokenV2Store {
 
     async getBySelector(
         selector: string,
-    ): Promise<(ApiTokenV2 & { verifier: string }) | undefined> {
+    ): Promise<ApiTokenV2WithVerifier | undefined> {
         const sql = this.makeTokenProjectQuery().where(
             'tokens.selector',
             selector,
         );
         const rows = await sql;
         return toTokens(rows)[0];
+    }
+
+    async getAllActive(): Promise<ApiTokenV2WithVerifier[]> {
+        const rows = await this.makeTokenProjectQuery().where((builder) =>
+            builder
+                .whereNull('tokens.expires_at')
+                .orWhere('tokens.expires_at', '>', 'now()'),
+        );
+        return toTokens(rows);
     }
 
     async getUserDefinedTokens(): Promise<ApiTokenV2[]> {
@@ -142,22 +156,54 @@ export class ApiTokenV2Store implements IApiTokenV2Store {
         await this.db(TABLE).where({ selector }).delete();
     }
 
+    async deleteByEnvironment(environment: string): Promise<ApiTokenV2[]> {
+        const rows = await this.makeTokenProjectQuery().where(
+            'tokens.environment',
+            environment,
+        );
+        const tokens = toTokens(rows).map(
+            ({ verifier: _verifier, ...token }) => token,
+        );
+
+        await this.db(TABLE).where({ environment }).delete();
+        return tokens;
+    }
+
     async markSeenAt(selector: string): Promise<void> {
         await this.db(TABLE)
             .where({ selector })
             .update({ seen_at: new Date() });
     }
 
+    /**
+     * First run pulls a bounded backlog in 1 transaction, the rest on subsequent runs.
+     */
     async deleteSystemCreatedTokensNotSeen(
         minutesSinceLastSeen: number,
-    ): Promise<void> {
-        await this.db(TABLE)
-            .where('user_created', false)
-            .andWhere(
-                'seen_at',
-                '<',
-                subMinutes(new Date(), minutesSinceLastSeen),
+    ): Promise<Omit<ApiTokenV2, 'projects'>[]> {
+        const cutoff = subMinutes(new Date(), minutesSinceLastSeen);
+
+        const deleted = await this.db(TABLE)
+            .whereIn(
+                'selector',
+                this.db(TABLE)
+                    .select('selector')
+                    .where('user_created', false)
+                    .andWhere('seen_at', '<', cutoff)
+                    .limit(CLEANUP_BATCH_SIZE),
             )
-            .delete();
+            .delete()
+            // without the verifier
+            .returning([
+                'selector',
+                'token_name',
+                'type',
+                'environment',
+                'expires_at',
+                'created_at',
+                'seen_at',
+            ]);
+
+        return deleted.map(toToken);
     }
 }

@@ -1298,6 +1298,11 @@ export class PublicSignupTokenUserAddedEvent extends BaseEvent {
     }
 }
 
+type ApiTokenEventData = Omit<IApiToken, 'secret'> & {
+    selector?: string;
+    tokenVersion?: 2;
+};
+
 export class ApiTokenCreatedEvent extends BaseEvent {
     readonly data: any;
 
@@ -1306,7 +1311,7 @@ export class ApiTokenCreatedEvent extends BaseEvent {
     readonly project: string;
 
     constructor(eventData: {
-        apiToken: Omit<IApiToken, 'secret'>;
+        apiToken: ApiTokenEventData;
         auditUser: IAuditUser;
     }) {
         super(API_TOKEN_CREATED, eventData.auditUser);
@@ -1324,7 +1329,7 @@ export class ApiTokenDeletedEvent extends BaseEvent {
     readonly project: string;
 
     constructor(eventData: {
-        apiToken: Omit<IApiToken, 'secret'>;
+        apiToken: ApiTokenEventData;
         auditUser: IAuditUser;
     }) {
         super(API_TOKEN_DELETED, eventData.auditUser);
@@ -1344,8 +1349,8 @@ export class ApiTokenUpdatedEvent extends BaseEvent {
     readonly project: string;
 
     constructor(eventData: {
-        previousToken: Omit<IApiToken, 'secret'>;
-        apiToken: Omit<IApiToken, 'secret'>;
+        previousToken: ApiTokenEventData;
+        apiToken: ApiTokenEventData;
         auditUser: IAuditUser;
     }) {
         super(API_TOKEN_UPDATED, eventData.auditUser);

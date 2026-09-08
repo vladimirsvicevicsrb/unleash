@@ -15,16 +15,19 @@ const patMiddleware = (
     logger.debug('Enabling PAT middleware');
 
     return async (req: IAuthRequest, _res, next) => {
+        if (req.user) {
+            return next();
+        }
+
         try {
             const apiToken = req.header('authorization');
             const parsedToken = parseAuthorizationToken(apiToken);
-            if (parsedToken?.kind === AuthorizationTokenKind.USER_ACCESS) {
+            if (parsedToken?.kind === AuthorizationTokenKind.ACCOUNT_ACCESS) {
                 const user =
-                    await accountService.getAccountByPersonalAccessToken(
-                        parsedToken.secret,
+                    await accountService.authenticateAccountByToken(
+                        parsedToken,
                     );
                 req.user = user;
-                accountService.addPATSeen(parsedToken.secret);
             }
         } catch (error) {
             if (error instanceof NotFoundError) {

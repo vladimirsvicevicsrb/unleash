@@ -23,7 +23,9 @@ import { ProjectActions } from './ProjectActions/ProjectActions.tsx';
 import { useUiFlag } from 'hooks/useUiFlag';
 import { ProjectContextFields } from './ProjectContextFields.tsx';
 import { ProjectReleaseTemplates } from './ProjectReleaseTemplates/ProjectReleaseTemplates.tsx';
+import { ProjectIntegrations } from './ProjectIntegrations/ProjectIntegrations.tsx';
 import { useRequiredPathParam } from 'hooks/useRequiredPathParam.ts';
+import { useEventTracker } from 'hooks/useEventTracker';
 import { useHasRootAccess } from 'hooks/useHasAccess';
 import {
     RELEASE_PLAN_TEMPLATE_CREATE,
@@ -41,6 +43,7 @@ export const ProjectSettings = () => {
     const { isPro, isEnterprise } = useUiConfig();
     const navigate = useNavigate();
     const projectId = useRequiredPathParam('projectId');
+    const { trackEvent } = useEventTracker();
 
     const actionsEnabled = useUiFlag('automatedActions');
     const canManageReleaseTemplates = useHasRootAccess(
@@ -48,6 +51,7 @@ export const ProjectSettings = () => {
         projectId,
     );
     const showReleaseTemplatesTab = isEnterprise() && canManageReleaseTemplates;
+    const showIntegrationsTab = useUiFlag('slackIntegrationProjectLevel');
 
     const paidTabs = (...tabs: ITab[]) =>
         isPro() || isEnterprise() ? tabs : [];
@@ -91,6 +95,14 @@ export const ProjectSettings = () => {
             id: 'default-strategy',
             label: 'Default strategy',
         },
+        ...(showIntegrationsTab
+            ? [
+                  {
+                      id: 'integrations',
+                      label: 'Integrations',
+                  },
+              ]
+            : []),
         ...paidTabs({
             id: 'change-requests',
             label: 'Change request configuration',
@@ -115,21 +127,24 @@ export const ProjectSettings = () => {
     }
 
     const toTabPath = (id: string) => `/projects/${projectId}/settings/${id}`;
+    const activeTabId =
+        tabs.find(
+            ({ id }) => id && location.pathname?.includes(`/settings/${id}`),
+        )?.id || tabs[0].id;
     const onChange = (tab: ITab) => {
+        if (tab.id !== activeTabId) {
+            trackEvent('project-settings', {
+                props: {
+                    eventType: tab.id || 'general',
+                    action: 'navigated',
+                },
+            });
+        }
         navigate(toTabPath(tab.id));
     };
 
     return (
-        <VerticalTabs
-            tabs={tabs}
-            value={
-                tabs.find(
-                    ({ id }) =>
-                        id && location.pathname?.includes(`/settings/${id}`),
-                )?.id || tabs[0].id
-            }
-            onChange={onChange}
-        >
+        <VerticalTabs tabs={tabs} value={activeTabId} onChange={onChange}>
             <Routes>
                 <Route path='/*' element={<Settings />} />
                 <Route
@@ -153,6 +168,12 @@ export const ProjectSettings = () => {
                     element={<ProjectDefaultStrategySettings />}
                 />
                 <Route path='actions/*' element={<ProjectActions />} />
+                {showIntegrationsTab ? (
+                    <Route
+                        path='integrations/*'
+                        element={<ProjectIntegrations />}
+                    />
+                ) : null}
                 <Route
                     path='*'
                     element={<Navigate replace to={toTabPath(tabs[0].id)} />}

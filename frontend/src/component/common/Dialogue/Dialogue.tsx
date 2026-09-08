@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { KeyboardEvent } from 'react';
+import { type KeyboardEvent, useEffect, useRef } from 'react';
 import {
     Button,
     Dialog,
@@ -10,7 +10,13 @@ import {
 } from '@mui/material';
 
 import { ConditionallyRender } from 'component/common/ConditionallyRender/ConditionallyRender';
+import {
+    dismissMethodFromCloseReason,
+    useDialogTracking,
+} from 'hooks/useDialogTracking';
 import { DIALOGUE_CONFIRM_ID } from 'utils/testIds';
+import { useEventTracker } from 'hooks/useEventTracker';
+import { emitTrackingAction, type Tracking } from 'utils/trackingEvents';
 
 const StyledDialog = styled(Dialog)(({ theme, maxWidth }) => ({
     '& .MuiDialog-paper': {
@@ -58,6 +64,7 @@ interface IDialogue {
     permissionButton?: React.JSX.Element;
     customButton?: React.JSX.Element;
     children?: React.ReactNode;
+    tracking?: Tracking;
 }
 
 export const Dialogue: React.FC<IDialogue> = ({
@@ -75,7 +82,21 @@ export const Dialogue: React.FC<IDialogue> = ({
     formId,
     permissionButton,
     customButton,
+    tracking,
 }) => {
+    const emitDismissed = useDialogTracking(open, tracking);
+    const { trackEvent } = useEventTracker();
+    const openedTrackingRef = useRef(tracking);
+    openedTrackingRef.current = tracking;
+
+    // Opening a Dialogue is a deliberate gesture, so it earns its own row.
+    useEffect(() => {
+        const declaration = openedTrackingRef.current;
+        if (open && declaration) {
+            emitTrackingAction(trackEvent, declaration, 'opened');
+        }
+    }, [open, trackEvent]);
+
     const handleClick = formId
         ? (e: React.SyntheticEvent) => {
               e.preventDefault();
@@ -85,15 +106,24 @@ export const Dialogue: React.FC<IDialogue> = ({
           }
         : onClick;
 
+    // Legacy escape path for consumers wired via setOpen instead of onClose;
+    // it bypasses MUI's onClose, so the dismissal is emitted here too (deduped).
     const onKeyDown = (event: KeyboardEvent) => {
-        if (event.key === 'Escape') {
-            setOpen?.(false);
+        if (event.key === 'Escape' && setOpen) {
+            emitDismissed('escape');
+            setOpen(false);
         }
     };
+
+    const handleMuiClose = (e: React.SyntheticEvent, reason?: string) => {
+        emitDismissed(dismissMethodFromCloseReason(reason));
+        onClose?.(e, reason);
+    };
+
     return (
         <StyledDialog
             open={open}
-            onClose={onClose}
+            onClose={onClose ? handleMuiClose : undefined}
             onKeyDown={onKeyDown}
             role={'dialog'}
             fullWidth={fullWidth}
@@ -135,7 +165,12 @@ export const Dialogue: React.FC<IDialogue> = ({
                     <ConditionallyRender
                         condition={Boolean(onClose)}
                         show={
-                            <Button onClick={onClose}>
+                            <Button
+                                onClick={(e) => {
+                                    emitDismissed('cancel-button');
+                                    onClose?.(e);
+                                }}
+                            >
                                 {secondaryButtonText || 'No, take me back'}
                             </Button>
                         }

@@ -10,7 +10,10 @@ import {
     isStringOperator,
     type Operator,
 } from 'constants/operators.js';
+import type { UiFlags } from 'interfaces/uiConfig';
+
 export type ConstraintValidationResult = [boolean, string];
+export type ConstraintValidatorFlags = Pick<UiFlags, 'semverBuildMetadata'>;
 
 const numberValidator = (value: string): ConstraintValidationResult => {
     const converted = Number(value);
@@ -46,10 +49,29 @@ const stringListValidator = (
     return [true, ''];
 };
 
-const semVerValidator = (value: string): ConstraintValidationResult => {
-    const isCleanValue = semver.clean(value) === value;
+const semVerValidator = (
+    value: string,
+    allowBuildMetadata = false,
+): ConstraintValidationResult => {
+    if (!allowBuildMetadata) {
+        const isCleanValue = semver.clean(value) === value;
+        if (!semver.valid(value) || !isCleanValue) {
+            return [false, 'Value is not a valid semver. For example 1.2.4'];
+        }
+        return [true, ''];
+    }
 
-    if (!semver.valid(value) || !isCleanValue) {
+    const parsed = semver.parse(value, { loose: false });
+
+    // `SemVer.version` drops build metadata, so we can't use it (or
+    // `semver.clean`, which is built on it) to check that the input was already
+    // canonical.
+    const canonicalForm =
+        parsed && parsed.build.length > 0
+            ? `${parsed.version}+${parsed.build.join('.')}`
+            : parsed?.version;
+
+    if (canonicalForm !== value) {
         return [false, 'Value is not a valid semver. For example 1.2.4'];
     }
 
@@ -84,12 +106,16 @@ const regexValidator = (value: string): ConstraintValidationResult => {
     return [true, ''];
 };
 
-export const constraintValidator = (operator: Operator) => {
+export const constraintValidator = (
+    operator: Operator,
+    flags: ConstraintValidatorFlags = {},
+) => {
     if (isDateOperator(operator)) {
         return dateValidator;
     }
     if (isSemVerOperator(operator)) {
-        return semVerValidator;
+        return (value: string) =>
+            semVerValidator(value, flags.semverBuildMetadata);
     }
     if (isNumOperator(operator)) {
         return numberValidator;

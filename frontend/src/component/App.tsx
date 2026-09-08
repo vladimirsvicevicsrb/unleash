@@ -28,6 +28,8 @@ import { SignupDialog } from './signup/SignupDialog/SignupDialog.tsx';
 import { WelcomeDialog } from './personalDashboard/WelcomeDialog.tsx';
 import { SkipNavLink } from './common/SkipNavLink/SkipNavLink.tsx';
 import { IntroProvider } from './onboarding/intro/IntroProvider.tsx';
+import { useUiFlag } from 'hooks/useUiFlag';
+import { UxTweakWidgets } from './uxtweak/UxTweakWidgets.tsx';
 
 const StyledContainer = styled('div')(() => ({
     '& ul': {
@@ -51,9 +53,10 @@ export const App = () => {
         if (hasFetchedAuth && user?.id) {
             refetchUiConfig();
         }
-    }, [authDetails, user]);
+    }, [user, hasFetchedAuth, refetchUiConfig]);
 
     const isLoggedIn = Boolean(user?.id);
+    const uxTweakSurveysEnabled = useUiFlag('uxTweakSurveys');
 
     const location = useLocation();
     useLastViewedPage(location);
@@ -118,6 +121,10 @@ export const App = () => {
                                         </Routes>
 
                                         <FeedbackNPS openUrl='http://feedback.unleash.run' />
+
+                                        {isLoggedIn && uxTweakSurveysEnabled ? (
+                                            <UxTweakWidgets />
+                                        ) : null}
 
                                         <SplashOverlay />
 

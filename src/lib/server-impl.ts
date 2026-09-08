@@ -108,6 +108,7 @@ import {
     createContextService,
     createEnvironmentService,
     createEventsService,
+    createPatService,
     createUserService,
     createFakeInstanceStatsService,
     createFakeProjectService,
@@ -138,6 +139,7 @@ import {
     type ExternalImpactMetricsSource,
 } from './internals.js';
 import SessionStore from './db/session-store.js';
+import { createRateLimitMiddleware } from './middleware/rate-limit-middleware.js';
 import metricsHelper from './util/metrics-helper.js';
 import type { ReleasePlanMilestoneStrategyWriteModel } from './features/release-plans/release-plan-milestone-strategy-store.js';
 import type { ReleasePlanMilestoneStrategyService } from './features/release-plans/release-plan-milestone-strategy-service.js';
@@ -234,10 +236,11 @@ export async function initialServiceSetup(
     {
         userService,
         apiTokenService,
+        apiTokenV2Service,
         edgeService,
     }: Pick<
         IUnleashServices,
-        'userService' | 'apiTokenService' | 'edgeService'
+        'userService' | 'apiTokenService' | 'apiTokenV2Service' | 'edgeService'
     >,
 ) {
     await userService.initAdminUser(authentication);
@@ -247,6 +250,7 @@ export async function initialServiceSetup(
     if (edgeClientSecret && edgeClientSecret.length > 0) {
         await edgeService.saveClient('enterprise-edge', edgeClientSecret);
     }
+    await apiTokenV2Service.initialize();
 }
 export type UnleashFactoryMethods = {
     // Factory methods: useful for testing
@@ -511,6 +515,7 @@ export {
     normalizeQueryParams,
     parseSearchOperatorValue,
     createEventsService,
+    createPatService,
     createUserService,
     SessionStore,
     createAccessService,
@@ -583,6 +588,7 @@ export {
     getProjectDefaultStrategy,
     getDefaultStrategy,
     corsOriginMiddleware,
+    createRateLimitMiddleware,
     ApiTokenType,
     impactRegister,
     EXTERNAL_SOURCE_SETTING_KEY,
@@ -659,5 +665,9 @@ export * from './types/index.js';
 export * from './error/index.js';
 export * from './util/index.js';
 export * from './services/index.js';
+export {
+    AuthorizationTokenKind,
+    type ApiAuthorizationTokenKind,
+} from './authentication/authorization-token.js';
 export * as eventtypes from './events/index.js';
 export * as interfaces from './interfaces/index.js';

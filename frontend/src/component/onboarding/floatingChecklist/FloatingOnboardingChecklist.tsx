@@ -1,4 +1,11 @@
-import { type ReactNode, useContext, useEffect, useRef, useState } from 'react';
+import {
+    type ReactNode,
+    useCallback,
+    useContext,
+    useEffect,
+    useRef,
+    useState,
+} from 'react';
 import {
     Button,
     IconButton,
@@ -9,11 +16,15 @@ import {
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import MinimizeIcon from '@mui/icons-material/Minimize';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import Draggable from 'react-draggable';
 import { Link } from 'react-router';
 import { CreateFeatureDialog } from 'component/project/Project/PaginatedProjectFeatureToggles/ProjectFeatureTogglesHeader/CreateFeatureDialog.tsx';
 import { ConnectSdkDialog } from 'component/onboarding/dialog/ConnectSdkDialog/ConnectSdkDialog.tsx';
 import { useIntro } from 'component/onboarding/intro/IntroProvider.tsx';
 import useSplashApi from 'hooks/api/actions/useSplashApi/useSplashApi.ts';
+import { useEventTracker } from 'hooks/useEventTracker.ts';
+import { getSessionStorageItem, setSessionStorageItem } from 'utils/storage.ts';
 import { FloatingOnboardingChecklistContext } from './FloatingOnboardingChecklistContext.tsx';
 import { OnboardingProgressBadge } from './OnboardingProgressBadge.tsx';
 import { useFloatingOnboardingChecklist } from './useFloatingOnboardingChecklist.ts';
@@ -21,8 +32,33 @@ import { useFirstProjectFeature } from './useFirstProjectFeature.ts';
 import { useChecklistRouteMatch } from './useChecklistRouteMatch.ts';
 import { ChecklistSteps, type ChecklistStep } from './ChecklistSteps.tsx';
 import { usePendingAction } from './usePendingAction.ts';
+import { useDraggableWindow } from './useDraggableWindow.ts';
+import { useChecklistDragPosition } from './useChecklistDragPosition.ts';
 import type { ChecklistStepKey } from './useChecklistContextValue.ts';
 import { ONBOARDING_CHECKLIST_SPLASH_ID } from './useOnboardingChecklistEligibility.ts';
+import { useHelpButtonHint } from 'component/menu/Header/HelpResources/HelpButtonHintContext.tsx';
+
+const CHECKLIST_SHOWN_TRACKED_KEY = 'floating-onboarding:shown-tracked:v1';
+
+const DRAG_HANDLE_CLASS = 'drag-handle';
+const DRAG_HANDLE_ICON_CLASS = 'drag-handle-icon';
+const DRAG_CANCEL_SELECTOR = 'button';
+
+type ChecklistClickAction =
+    | 'close'
+    | 'minimize'
+    | 'expand'
+    | 'take-tour'
+    | 'retake-tour'
+    | 'create-flag'
+    | 'view-created-flag'
+    | 'connect-sdk'
+    | 'enable-flag'
+    | 'view-enabled-flag';
+
+type ChecklistEvent =
+    | { eventType: 'shown' }
+    | { eventType: 'click'; action: ChecklistClickAction };
 
 const PULSE_DURATION_MS = 900;
 
@@ -36,13 +72,14 @@ const Window = styled('aside', {
 })<{ pulsing?: boolean }>(({ theme, pulsing }) => ({
     position: 'fixed',
     bottom: theme.spacing(3),
-    right: theme.spacing(3),
-    width: 380,
+    right: theme.spacing(20),
+    width: 320,
     maxWidth: `calc(100vw - ${theme.spacing(4)})`,
     maxHeight: `calc(100vh - ${theme.spacing(6)})`,
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
+    WebkitMaskImage: '-webkit-radial-gradient(white, black)',
     backgroundColor: theme.palette.background.default,
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: theme.shape.borderRadiusLarge,
@@ -60,13 +97,33 @@ const Window = styled('aside', {
     }),
 }));
 
-const Header = styled('div')(({ theme }) => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: theme.spacing(1),
-    padding: theme.spacing(1, 1.5, 1, 1.5),
-    background: theme.palette.background.elevation1,
+const Header = styled('div', {
+    shouldForwardProp: (prop) => prop !== 'dragging' && prop !== 'isDraggable',
+})<{ dragging?: boolean; isDraggable?: boolean }>(
+    ({ theme, dragging, isDraggable }) => ({
+        display: 'flex',
+        alignItems: 'center',
+        gap: theme.spacing(0.125),
+        padding: theme.spacing(1, 1.5, 1, 0.75),
+        background: theme.palette.background.elevation1,
+        flexShrink: 0,
+        ...(isDraggable && {
+            cursor: dragging ? 'grabbing' : 'grab',
+            // Prevent touch scroll and text selection from interfering with the drag.
+            touchAction: 'none',
+            userSelect: dragging ? 'none' : undefined,
+            [`&:hover .${DRAG_HANDLE_ICON_CLASS}`]: {
+                color: theme.palette.text.secondary,
+            },
+        }),
+    }),
+);
+
+const DragHandle = styled(DragIndicatorIcon)(({ theme }) => ({
+    color: theme.palette.text.disabled,
+    fontSize: '1.25rem',
     flexShrink: 0,
+    transition: theme.transitions.create('color'),
 }));
 
 const TitleRow = styled('div')(({ theme }) => ({
@@ -135,11 +192,13 @@ const GoToFlag = ({
     variant = 'outlined',
     disabled = false,
     onFlagPage = false,
+    onClick,
 }: {
     href: string | null;
     variant?: 'outlined' | 'contained';
     disabled?: boolean;
     onFlagPage?: boolean;
+    onClick?: () => void;
 }) => {
     if (onFlagPage) {
         return (
@@ -155,6 +214,7 @@ const GoToFlag = ({
             size='medium'
             component={Link}
             to={href}
+            onClick={onClick}
         >
             Go to flag
         </Button>
@@ -183,8 +243,8 @@ const EligibleFloatingOnboardingChecklist = () => {
         environments,
         refetchOverview,
         openRequestCounter,
-        showHelpHint,
     } = useFloatingOnboardingChecklist();
+    const { showHint: showHelpButtonHint } = useHelpButtonHint();
     const { feature, goToFlagHref } = useFirstProjectFeature(projectId);
 
     const { open: openIntro } = useIntro();
@@ -194,6 +254,29 @@ const EligibleFloatingOnboardingChecklist = () => {
             projectId,
             feature,
         });
+
+    const { trackEvent } = useEventTracker();
+    const trackChecklistEvent = useCallback(
+        (event: ChecklistEvent) => {
+            trackEvent('onboarding-checklist', { props: event });
+        },
+        [trackEvent],
+    );
+
+    const [dragPosition, setDragPosition] = useChecklistDragPosition();
+    const {
+        nodeRef,
+        position,
+        dragging,
+        bounds,
+        canDrag,
+        onStart,
+        onStop,
+        onDrag,
+    } = useDraggableWindow({
+        position: dragPosition,
+        onPositionChange: setDragPosition,
+    });
 
     const [createFlagOpen, setCreateFlagOpen] = useState(false);
     const [connectSdkOpen, setConnectSdkOpen] = useState(false);
@@ -208,6 +291,15 @@ const EligibleFloatingOnboardingChecklist = () => {
         );
         return () => window.clearTimeout(timeout);
     }, [openRequestCounter]);
+
+    useEffect(() => {
+        if (dismissed) return;
+        // The checklist mounts on every page, so gate the 'shown' event on
+        // sessionStorage — one impression per session, not per navigation.
+        if (getSessionStorageItem<boolean>(CHECKLIST_SHOWN_TRACKED_KEY)) return;
+        setSessionStorageItem(CHECKLIST_SHOWN_TRACKED_KEY, true);
+        trackChecklistEvent({ eventType: 'shown' });
+    }, [dismissed, trackChecklistEvent]);
 
     // Persisted across the MainLayout re-mount that happens on route change.
     const { runOnPage, cancelPendingAction } = usePendingAction({
@@ -227,22 +319,41 @@ const EligibleFloatingOnboardingChecklist = () => {
 
     if (dismissed) return null;
 
-    const toggleMinimized = () => update({ minimized: !state.minimized });
+    const toggleMinimized = () => {
+        const willBeMinimized = !state.minimized;
+        trackChecklistEvent({
+            eventType: 'click',
+            action: willBeMinimized ? 'minimize' : 'expand',
+        });
+        update({ minimized: willBeMinimized });
+    };
 
     const handleDismiss = () => {
+        trackChecklistEvent({ eventType: 'click', action: 'close' });
         cancelPendingAction();
         update({ dismissed: true });
         setSplashSeen(ONBOARDING_CHECKLIST_SPLASH_ID);
-        showHelpHint();
+        showHelpButtonHint('get-started');
     };
 
-    const handleTakeTour = () =>
+    const handleTakeTour = () => {
+        trackChecklistEvent({
+            eventType: 'click',
+            action: done.tour ? 'retake-tour' : 'take-tour',
+        });
         openIntro({
             onFinish: () => markCompleted('tour'),
         });
+    };
 
-    const handleCreateFlag = () => runOnPage('flag');
-    const handleConnectSdk = () => runOnPage('sdk');
+    const handleCreateFlag = () => {
+        trackChecklistEvent({ eventType: 'click', action: 'create-flag' });
+        runOnPage('flag');
+    };
+    const handleConnectSdk = () => {
+        trackChecklistEvent({ eventType: 'click', action: 'connect-sdk' });
+        runOnPage('sdk');
+    };
 
     const stepDefinitions: Record<
         ChecklistStepKey,
@@ -263,7 +374,16 @@ const EligibleFloatingOnboardingChecklist = () => {
             body: 'You must create a feature flag before you can connect an SDK.',
             done: done.flag,
             action: done.flag ? (
-                <GoToFlag href={goToFlagHref} onFlagPage={onFlagPage} />
+                <GoToFlag
+                    href={goToFlagHref}
+                    onFlagPage={onFlagPage}
+                    onClick={() =>
+                        trackChecklistEvent({
+                            eventType: 'click',
+                            action: 'view-created-flag',
+                        })
+                    }
+                />
             ) : (
                 <Primary onClick={handleCreateFlag}>New feature flag</Primary>
             ),
@@ -287,13 +407,28 @@ const EligibleFloatingOnboardingChecklist = () => {
             body: 'Check that the flag is working by turning it on.',
             done: done.on,
             action: done.on ? (
-                <GoToFlag href={goToFlagHref} onFlagPage={onFlagPage} />
+                <GoToFlag
+                    href={goToFlagHref}
+                    onFlagPage={onFlagPage}
+                    onClick={() =>
+                        trackChecklistEvent({
+                            eventType: 'click',
+                            action: 'view-enabled-flag',
+                        })
+                    }
+                />
             ) : (
                 <GoToFlag
                     href={goToFlagHref}
                     variant='contained'
                     disabled={!done.sdk}
                     onFlagPage={onFlagPage}
+                    onClick={() =>
+                        trackChecklistEvent({
+                            eventType: 'click',
+                            action: 'enable-flag',
+                        })
+                    }
                 />
             ),
         },
@@ -305,34 +440,57 @@ const EligibleFloatingOnboardingChecklist = () => {
 
     return (
         <>
-            <Window aria-label='Get started' pulsing={pulsing}>
-                <Header>
-                    <TitleRow>
-                        <HeaderTitle>Get started</HeaderTitle>
-                        <OnboardingProgressBadge showLabel />
-                    </TitleRow>
-                    <IconButton
-                        size='small'
-                        aria-label={state.minimized ? 'Expand' : 'Minimize'}
-                        onClick={toggleMinimized}
+            <Draggable
+                nodeRef={nodeRef}
+                disabled={!canDrag}
+                handle={`.${DRAG_HANDLE_CLASS}`}
+                cancel={DRAG_CANCEL_SELECTOR}
+                position={position}
+                bounds={bounds}
+                onStart={onStart}
+                onStop={onStop}
+                onDrag={onDrag}
+            >
+                <Window
+                    aria-label='Get started'
+                    pulsing={pulsing}
+                    ref={nodeRef}
+                >
+                    <Header
+                        isDraggable={canDrag}
+                        dragging={dragging}
+                        className={canDrag ? DRAG_HANDLE_CLASS : undefined}
                     >
-                        <MinimizeIcon fontSize='small' />
-                    </IconButton>
-                    <IconButton
-                        size='small'
-                        aria-label='Close'
-                        onClick={handleDismiss}
-                    >
-                        <CloseIcon fontSize='small' />
-                    </IconButton>
-                </Header>
+                        {canDrag ? (
+                            <DragHandle className={DRAG_HANDLE_ICON_CLASS} />
+                        ) : null}
+                        <TitleRow>
+                            <HeaderTitle>Get started</HeaderTitle>
+                            <OnboardingProgressBadge showLabel />
+                        </TitleRow>
+                        <IconButton
+                            size='medium'
+                            aria-label={state.minimized ? 'Expand' : 'Minimize'}
+                            onClick={toggleMinimized}
+                        >
+                            <MinimizeIcon fontSize='medium' />
+                        </IconButton>
+                        <IconButton
+                            size='medium'
+                            aria-label='Close'
+                            onClick={handleDismiss}
+                        >
+                            <CloseIcon fontSize='medium' />
+                        </IconButton>
+                    </Header>
 
-                {state.minimized ? null : (
-                    <Body>
-                        <ChecklistSteps steps={steps} />
-                    </Body>
-                )}
-            </Window>
+                    {state.minimized ? null : (
+                        <Body>
+                            <ChecklistSteps steps={steps} />
+                        </Body>
+                    )}
+                </Window>
+            </Draggable>
 
             <CreateFeatureDialog
                 open={createFlagOpen}

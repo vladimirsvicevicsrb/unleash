@@ -1,23 +1,18 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import useProjectOverview from 'hooks/api/getters/useProjectOverview/useProjectOverview';
 import { useUiFlag } from 'hooks/useUiFlag';
 import { useAuthSplash } from 'hooks/api/getters/useAuth/useAuthSplash.ts';
 import { getProjectOnboardingStep } from 'utils/getProjectOnboardingStep.ts';
-import { getLocalStorageItem, setLocalStorageItem } from 'utils/storage.ts';
 import {
     type FloatingOnboardingChecklistCompleted,
     type FloatingOnboardingChecklistState,
     useFloatingOnboardingChecklistState,
 } from './floatingOnboardingChecklistState.ts';
 import { ONBOARDING_INTRO_FINISHED_SPLASH_ID } from 'component/onboarding/intro/IntroProvider.tsx';
-import {
-    ONBOARDING_CHECKLIST_SPLASH_ID,
-    useOnboardingChecklistEligibility,
-} from './useOnboardingChecklistEligibility.ts';
+import { ONBOARDING_CHECKLIST_SPLASH_ID } from './useOnboardingChecklistEligibility.ts';
+import { useOnboardingChecklistVisibility } from './useOnboardingChecklistVisibility.ts';
 
 export const CHECKLIST_PROJECT_ID = 'default';
-
-const HELP_HINT_STORAGE_KEY = 'floating-onboarding:help-hint-seen:v1';
 
 export type ChecklistStepKey = 'tour' | 'flag' | 'sdk' | 'on';
 
@@ -35,30 +30,16 @@ export interface FloatingOnboardingChecklistContextValue {
     totalSteps: number;
     environments: string[];
     refetchOverview: () => void;
-    helpHintVisible: boolean;
-    showHelpHint: () => void;
-    dismissHelpHint: () => void;
 }
 
 export const useChecklistContextValue =
     (): FloatingOnboardingChecklistContextValue | null => {
-        const eligible = useOnboardingChecklistEligibility();
+        const visibility = useOnboardingChecklistVisibility();
         const { state, update, markCompleted } =
             useFloatingOnboardingChecklistState();
         const [openRequestCounter, setOpenRequestCounter] = useState(0);
-        const [helpHintVisible, setHelpHintVisible] = useState(false);
-
-        const showHelpHint = useCallback(() => {
-            if (getLocalStorageItem<boolean>(HELP_HINT_STORAGE_KEY)) return;
-            setHelpHintVisible(true);
-        }, []);
-
-        const dismissHelpHint = useCallback(() => {
-            setHelpHintVisible(false);
-            setLocalStorageItem(HELP_HINT_STORAGE_KEY, true);
-        }, []);
         const { splash } = useAuthSplash();
-        const quickTourEnabled = useUiFlag('quickTourDemo');
+        const quickTourEnabled = useUiFlag('onboardingIntroTour');
         const projectId = CHECKLIST_PROJECT_ID;
 
         const splashDismissed = Boolean(
@@ -71,7 +52,7 @@ export const useChecklistContextValue =
             loading,
             error: projectError,
             refetch: refetchOverview,
-        } = useProjectOverview(eligible ? projectId : '');
+        } = useProjectOverview(visibility === 'visible' ? projectId : '');
 
         const environments = useMemo(
             () => (project.environments ?? []).map((env) => env.environment),
@@ -96,7 +77,8 @@ export const useChecklistContextValue =
         const totalSteps = visibleSteps.length;
         const completedCount = visibleSteps.filter((key) => done[key]).length;
 
-        if (!eligible || projectError || loading) return null;
+        if (visibility === 'hidden') return null;
+        if (visibility === 'visible' && (projectError || loading)) return null;
 
         return {
             state,
@@ -117,8 +99,5 @@ export const useChecklistContextValue =
             totalSteps,
             environments,
             refetchOverview,
-            helpHintVisible,
-            showHelpHint,
-            dismissHelpHint,
         };
     };

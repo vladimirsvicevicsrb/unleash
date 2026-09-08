@@ -14,11 +14,10 @@ import { DraftBanner } from './DraftBanner/DraftBanner.tsx';
 import { ThemeMode } from 'component/common/ThemeMode/ThemeMode';
 import { NavigationSidebar } from './NavigationSidebar/NavigationSidebar.tsx';
 import { EventTimelineProvider } from 'component/events/EventTimeline/EventTimelineProvider';
-import { NewInUnleash } from './NavigationSidebar/NewInUnleash/NewInUnleash.tsx';
-import { FloatingOnboardingChecklist } from 'component/onboarding/floatingChecklist/FloatingOnboardingChecklist.tsx';
+import { FloatingOnboardingChecklistVisibilityGate } from 'component/onboarding/floatingChecklist/FloatingOnboardingChecklistVisibilityGate.tsx';
 import { FloatingOnboardingChecklistProvider } from 'component/onboarding/floatingChecklist/FloatingOnboardingChecklistContext.tsx';
+import { HelpButtonHintProvider } from 'component/menu/Header/HelpResources/HelpButtonHintContext.tsx';
 import { AccessRequestsNotifications } from 'component/admin/users/AccessRequestsNotifications/AccessRequestsNotifications';
-import { useUiFlag } from 'hooks/useUiFlag';
 
 interface IMainLayoutProps {
     children: ReactNode;
@@ -128,77 +127,73 @@ export const MainLayout = forwardRef<HTMLDivElement, IMainLayoutProps>(
         );
         const theme = useTheme();
         const isSmallScreen = useMediaQuery(theme.breakpoints.down('lg'));
-        const accessRequestsNotificationsEnabled = useUiFlag(
-            'accessRequestsNotifications',
-        );
 
         return (
-            <FloatingOnboardingChecklistProvider>
-                <EventTimelineProvider>
-                    <MainLayoutContainer>
-                        <MainLayoutContentWrapper>
-                            <LayoutFlexContainer>
-                                <ConditionallyRender
-                                    condition={!isSmallScreen}
-                                    show={<NavigationSidebar />}
-                                />
-
-                                <MainContentWrapper>
+            <HelpButtonHintProvider>
+                <FloatingOnboardingChecklistProvider>
+                    <EventTimelineProvider>
+                        <MainLayoutContainer>
+                            <MainLayoutContentWrapper>
+                                <LayoutFlexContainer>
                                     <ConditionallyRender
-                                        condition={Boolean(
-                                            projectId &&
-                                                isChangeRequestConfiguredInAnyEnv(),
-                                        )}
-                                        show={
-                                            <DraftBanner
-                                                project={projectId || ''}
-                                            />
-                                        }
+                                        condition={!isSmallScreen}
+                                        show={<NavigationSidebar />}
                                     />
-                                    <HeaderContentContainer>
-                                        <Header />
 
-                                        <ContentFlexContainer>
-                                            <StyledMainLayoutContent>
-                                                <SkipNavTarget />
-                                                <MainLayoutContentContainer
-                                                    ref={ref}
-                                                >
-                                                    <BreadcrumbNav />
-                                                    {children}
-                                                </MainLayoutContentContainer>
-                                            </StyledMainLayoutContent>
-                                        </ContentFlexContainer>
-                                    </HeaderContentContainer>
+                                    <MainContentWrapper>
+                                        <ConditionallyRender
+                                            condition={Boolean(
+                                                projectId &&
+                                                    isChangeRequestConfiguredInAnyEnv(),
+                                            )}
+                                            show={
+                                                <DraftBanner
+                                                    project={projectId || ''}
+                                                />
+                                            }
+                                        />
+                                        <HeaderContentContainer>
+                                            <Header />
 
-                                    <FloatingOnboardingChecklist />
-                                    <Footer />
-                                </MainContentWrapper>
-                            </LayoutFlexContainer>
+                                            <ContentFlexContainer>
+                                                <StyledMainLayoutContent>
+                                                    <SkipNavTarget />
+                                                    <MainLayoutContentContainer
+                                                        ref={ref}
+                                                    >
+                                                        <BreadcrumbNav />
+                                                        {children}
+                                                    </MainLayoutContentContainer>
+                                                </StyledMainLayoutContent>
+                                            </ContentFlexContainer>
+                                        </HeaderContentContainer>
 
-                            <ThemeMode
-                                darkmode={
-                                    <StyledImg
-                                        style={{ opacity: 0.06 }}
-                                        src={formatAssetPath(textureImage)}
-                                        alt=''
-                                    />
-                                }
-                                lightmode={
-                                    <StyledImg
-                                        src={formatAssetPath(textureImage)}
-                                        alt=''
-                                    />
-                                }
-                            />
-                        </MainLayoutContentWrapper>
-                    </MainLayoutContainer>
-                    <NewInUnleash />
-                    {accessRequestsNotificationsEnabled && (
+                                        <FloatingOnboardingChecklistVisibilityGate />
+                                        <Footer />
+                                    </MainContentWrapper>
+                                </LayoutFlexContainer>
+
+                                <ThemeMode
+                                    darkmode={
+                                        <StyledImg
+                                            style={{ opacity: 0.06 }}
+                                            src={formatAssetPath(textureImage)}
+                                            alt=''
+                                        />
+                                    }
+                                    lightmode={
+                                        <StyledImg
+                                            src={formatAssetPath(textureImage)}
+                                            alt=''
+                                        />
+                                    }
+                                />
+                            </MainLayoutContentWrapper>
+                        </MainLayoutContainer>
                         <AccessRequestsNotifications />
-                    )}
-                </EventTimelineProvider>
-            </FloatingOnboardingChecklistProvider>
+                    </EventTimelineProvider>
+                </FloatingOnboardingChecklistProvider>
+            </HelpButtonHintProvider>
         );
     },
 );

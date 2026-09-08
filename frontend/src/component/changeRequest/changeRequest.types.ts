@@ -2,7 +2,10 @@ import type { IFeatureVariant } from 'interfaces/featureToggle';
 import type { ISegment } from 'interfaces/segment';
 import type { IFeatureStrategy } from '../../interfaces/strategy.js';
 import type { IUser } from '../../interfaces/user.js';
-import type { SetStrategySortOrderSchema } from 'openapi';
+import type {
+    SetStrategySortOrderSchema,
+    TransitionConditionSchema,
+} from 'openapi';
 import type { IReleasePlan } from 'interfaces/releasePlans';
 import type { ISafeguard } from 'interfaces/safeguard';
 
@@ -118,6 +121,8 @@ export type ChangeRequestState =
     | 'Scheduled'
     | 'Cancelled'
     | 'Rejected';
+
+export type ChangeRequestTransitionState = Exclude<ChangeRequestState, 'Draft'>;
 
 export const isClosed = (state: ChangeRequestState): boolean =>
     ['Applied', 'Cancelled', 'Rejected'].includes(state);
@@ -346,7 +351,7 @@ type ChangeRequestStartMilestone = {
 type ChangeRequestChangeMilestoneProgression = {
     sourceMilestone: string;
     targetMilestone: string;
-    transitionCondition: { intervalMinutes: number };
+    transitionCondition: TransitionConditionSchema;
     snapshot?: IReleasePlan;
 };
 

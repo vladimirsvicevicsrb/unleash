@@ -66,7 +66,6 @@ export const adminRoutes: INavigationMenuItem[] = [
             adminSettings: true,
             mode: ['enterprise'],
         },
-        flag: 'sessionInspector',
         group: 'users',
     },
 
@@ -166,7 +165,7 @@ export const adminRoutes: INavigationMenuItem[] = [
     {
         path: '/admin/remote-mcp',
         title: 'Remote MCP server',
-        menu: { adminSettings: true },
+        menu: { adminSettings: true, mode: ['enterprise'] },
     },
 
     // Impact Metrics

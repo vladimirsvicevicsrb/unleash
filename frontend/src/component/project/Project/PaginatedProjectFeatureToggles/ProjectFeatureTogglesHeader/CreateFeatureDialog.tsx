@@ -3,9 +3,16 @@ import { formatUnknownError } from 'utils/formatUnknownError';
 import useToast from 'hooks/useToast';
 import FormTemplate from 'component/common/FormTemplate/FormTemplate';
 import { CREATE_FEATURE } from 'component/providers/AccessProvider/permissions';
-import { type ReactNode, useState, type FormEvent, useMemo } from 'react';
+import {
+    type ReactNode,
+    useState,
+    type FormEvent,
+    useMemo,
+    useEffect,
+} from 'react';
 import useUiConfig from 'hooks/api/getters/useUiConfig/useUiConfig';
 import { useUiFlag } from 'hooks/useUiFlag';
+import { useTracking } from 'hooks/useTracking';
 import { useNavigate } from 'react-router';
 import { Dialog, IconButton, styled } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
@@ -43,6 +50,18 @@ import { useFlagLimits } from './useFlagLimits.tsx';
 import { useFeatureCreatedFeedback } from './hooks/useFeatureCreatedFeedback.ts';
 import { formatTag } from 'utils/format-tag';
 import { useLocalStorageState } from 'hooks/useLocalStorageState.ts';
+import { emitTrackingAction } from 'utils/trackingEvents';
+import { useEventTracker } from 'hooks/useEventTracker';
+import {
+    dismissMethodFromCloseReason,
+    useDialogTracking,
+} from 'hooks/useDialogTracking';
+import type { DialogDismissMethod, Tracking } from 'utils/trackingEvents';
+
+const flagCreationTracking = {
+    event: 'flag-creation',
+    type: 'created',
+} satisfies Tracking;
 
 interface ICreateFeatureDialogProps {
     open: boolean;
@@ -145,6 +164,16 @@ const CreateFeatureDialogContent = ({
     onSuccess,
 }: ICreateFeatureDialogProps) => {
     const useNewDesign = useUiFlag('newModalDesign');
+    const emitDismissed = useDialogTracking(open, flagCreationTracking);
+    const { trackEvent } = useEventTracker();
+
+    // Opening this dialog is a deliberate gesture, so it earns its own row.
+    useEffect(() => {
+        if (open) {
+            emitTrackingAction(trackEvent, flagCreationTracking, 'opened');
+        }
+    }, [open, trackEvent]);
+    const { trackMutation } = useTracking(flagCreationTracking);
     const { setToastData, setToastApiError } = useToast();
     const { uiConfig, isOss } = useUiConfig();
     const navigate = useNavigate();
@@ -216,7 +245,9 @@ const CreateFeatureDialogContent = ({
         if (validToggleName) {
             const payload = getTogglePayload();
             try {
-                await createFeatureToggle(project, payload);
+                await trackMutation(() =>
+                    createFeatureToggle(project, payload),
+                );
                 navigate(`/projects/${project}/features/${name}`);
                 setToastData({
                     text: 'Flag created successfully',
@@ -267,7 +298,8 @@ const CreateFeatureDialogContent = ({
         return projectObject?.name;
     }, [project, projects]);
 
-    const onDialogClose = () => {
+    const onDialogClose = (method: DialogDismissMethod) => {
+        emitDismissed(method);
         setStoredFlagConfig({
             name,
             tags,
@@ -309,7 +341,7 @@ const CreateFeatureDialogContent = ({
         <>
             <StyledNewSidebarHeader>
                 <StyledNewSidebarCloseButton
-                    onClick={onDialogClose}
+                    onClick={() => onDialogClose('close-icon')}
                     size='small'
                     aria-label='Close'
                 >
@@ -335,7 +367,12 @@ const CreateFeatureDialogContent = ({
     );
 
     return (
-        <StyledDialog open={open} onClose={onDialogClose}>
+        <StyledDialog
+            open={open}
+            onClose={(_, reason) =>
+                onDialogClose(dismissMethodFromCloseReason(reason))
+            }
+        >
             <FormTemplate
                 compact
                 disablePadding
@@ -372,7 +409,7 @@ const CreateFeatureDialogContent = ({
                             configButtonData.impressionData.text
                         }
                         handleSubmit={handleSubmit}
-                        onClose={onDialogClose}
+                        onClose={() => onDialogClose('cancel-button')}
                         createButtonProps={createButtonProps}
                         Limit={limitNode}
                         configButtons={
@@ -452,7 +489,10 @@ const CreateFeatureDialogContent = ({
                         validateName={validateToggleName}
                         Limit={limitNode}
                         name={name}
-                        onClose={onClose}
+                        onClose={() => {
+                            emitDismissed('cancel-button');
+                            onClose();
+                        }}
                         resource={'feature flag'}
                         setDescription={setDescription}
                         setName={setName}
